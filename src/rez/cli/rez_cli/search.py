@@ -19,7 +19,7 @@ def setup_parser(parser, completions=False):
     parser.add_argument("-t", "--type", default="auto", choices=types_,
                         help="type of resource to search for. If 'auto', "
                         "either packages or package families are searched, "
-                        "depending on NAME and VERSION")
+                        "depending on the value of PKG")
     parser.add_argument("--nl", "--no-local", dest="no_local",
                         action="store_true",
                         help="don't search local packages")
@@ -132,7 +132,7 @@ def command(opts, parser, extra_arg_groups=None):
     # packages/variants
     if type_ in ("package", "variant"):
         for name in family_names:
-            packages = iter_packages(name, version_range)
+            packages = iter_packages(name, version_range, paths=pkg_paths)
             if opts.sort or opts.latest:
                 packages = sorted(packages, key=lambda x: x.version)
                 if opts.latest and packages:

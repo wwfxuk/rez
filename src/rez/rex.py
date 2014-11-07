@@ -124,6 +124,11 @@ class Alias(Action):
 Alias.register()
 
 
+class UnAlias(Action):
+    name = 'unalias'
+UnAlias.register()
+
+
 class Info(Action):
     name = 'info'
 Info.register()
@@ -391,6 +396,11 @@ class ActionManager(object):
         self.add_action(Alias(key, value))
         self.interpreter.alias(key, value)
 
+    def unalias(self, key):
+        key = self._format(key)
+        self.actions.append(UnAlias(key))
+        self.interpreter.unalias(key)
+
     def info(self, value=''):
         value = self._format(value)
         self.add_action(Info(value))
@@ -474,6 +484,9 @@ class ActionInterpreter(object):
         raise NotImplementedError
 
     def alias(self, key, value):
+        raise NotImplementedError
+
+    def unalias(self, key):
         raise NotImplementedError
 
     def info(self, value):
@@ -600,6 +613,9 @@ class Python(ActionInterpreter):
         pass
 
     def alias(self, key, value):
+        pass
+
+    def unalias(self, key):
         pass
 
     def _bind_interactive_rez(self):

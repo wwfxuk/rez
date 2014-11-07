@@ -24,6 +24,49 @@ def stream_is_tty(stream):
     return isatty and isatty()
 
 
+def bright(str_):
+    """Return the string styled as bright (bold)
+
+    Args:
+        str_ (str): The string to be wrapped.
+
+    Returns:
+        str: The string styled with the appropriate escape sequences.
+    """
+    return colorama.Style.BRIGHT + str_ + colorama.Style.RESET_ALL
+
+
+def notset(str_):
+    """ Return the string wrapped with the appropriate escape sequences to
+    remove all styling.
+
+    Args:
+      str_ (str): The string to be wrapped.
+
+    Returns:
+      str: The string styled with the appropriate escape sequences.
+    """
+    return _color(str_)
+
+
+class combine(object):
+    """Combine colors and styles together.
+
+    Example::
+        >>> mycol = combine(bright, warning)
+        >>> print mycol("hello")  # will print in bold and warning color
+    """
+    def __init__(self, *colors):
+        self.colors = colors
+
+    def __call__(self, str_):
+        for c in self.colors:
+            str_ = c(str_)
+        return str_
+
+
+# -- configurable colors
+
 def critical(str_):
     """ Return the string wrapped with the appropriate styling of a critical
     message.  The styling will be determined based on the rez configuration.
@@ -143,18 +186,7 @@ def alias(str_):
     return _color_level(str_, 'alias')
 
 
-def notset(str_):
-    """ Return the string wrapped with the appropriate escape sequences to
-    remove all styling.
-
-    Args:
-      str_ (str): The string to be wrapped.
-
-    Returns:
-      str: The string styled with the appropriate escape sequences.
-    """
-    return _color(str_)
-
+# -- internals
 
 def _color_level(str_, level):
     """ Return the string wrapped with the appropriate styling for the message
@@ -281,14 +313,19 @@ class ColorizedStreamHandler(logging.StreamHandler):
 
 
 class Printer(object):
-    def __init__(self, buf=sys.stdout):
+    def __init__(self, buf=sys.stdout, style=None):
         self.buf = buf
+        self.style = style
         self.tty = stream_is_tty(buf)
 
     def __call__(self, msg='', style=None):
         print >> self.buf, self.get(msg, style)
 
     def get(self, msg, style=None):
-        if style and self.tty:
-            msg = style(msg)
+        style_ = style or self.style
+        if style_ and self.tty:
+            msg = style_(msg)
         return msg
+
+    def isatty(self):
+        return stream_is_tty(self.buf)

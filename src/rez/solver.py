@@ -16,7 +16,7 @@ from rez.vendor.version.requirement import VersionedObject, Requirement, \
 from rez.vendor.enum import Enum
 from rez.packages import iter_packages
 from rez.util import columnise
-from rez.config import config
+from itertools import groupby
 import os.path
 import copy
 import time
@@ -312,7 +312,7 @@ class _PackageVariantList(_Common):
 
         Returns:
             Two-tuple:
-            - List of `PackageVariant` objects;
+            - List of `PackageVariant` objects, in descending version order;
             - bool indicating whether there are packages still to be loaded. If
                 True, more packages could be loaded, if False then all packages
                 are loaded. This value can only be True when max_packages is
@@ -400,13 +400,23 @@ class _PackageVariantSlice(_Common):
     @property
     def extractable(self):
         """True if there are possible remaining extractions."""
-        return bool(self.common_fams - self.extracted_fams)
+        return not self.extracted_fams.issuperset(self.common_fams)
 
     def intersect(self, range):
         """Remove variants whos version fall outside of the given range."""
         if self.pr:
             self.pr("intersecting %s wrt range '%s'...", self, range)
-        variants = [x for x in self.variants if x.version in range]
+
+        if range.is_any():
+            return self
+
+        variants = []
+        it = groupby(self.variants, lambda x: x.version)
+        it2 = range.contains_versions(it, key=lambda x: x[0], descending=True)
+        for contains, (_, variants_) in it2:
+            if contains:
+                variants.extend(variants_)
+
         if not variants:
             return None
         elif len(variants) < len(self.variants):
@@ -432,24 +442,24 @@ class _PackageVariantSlice(_Common):
 
         variants = []
         reductions = []
+        fn = lambda x: x.get(package_request.name)
 
-        for variant in self.variants:
-            req = variant.get(package_request.name)
+        for req, variants_ in groupby(self.variants, fn):
             if req and req.conflicts_with(package_request):
-                red = Reduction(name=variant.name,
-                                version=variant.version,
-                                variant_index=variant.index,
-                                dependency=req,
-                                conflicting_request=package_request)
-                reductions.append(red)
-                if self.pr:
-                    self.pr("removed %s (dep(%s) <--!--> %s)",
-                            red.reducee_str(),
-                            red.dependency,
-                            red.conflicting_request)
-                continue
-
-            variants.append(variant)
+                for variant in variants_:
+                    red = Reduction(name=variant.name,
+                                    version=variant.version,
+                                    variant_index=variant.index,
+                                    dependency=req,
+                                    conflicting_request=package_request)
+                    reductions.append(red)
+                    if self.pr:
+                        self.pr("removed %s (dep(%s) <--!--> %s)",
+                                red.reducee_str(),
+                                red.dependency,
+                                red.conflicting_request)
+            else:
+                variants.extend(variants_)
 
         if not variants:
             return (None, reductions)
@@ -464,48 +474,49 @@ class _PackageVariantSlice(_Common):
         Note that conflict dependencies are never extracted, they are always
         resolved via reduction.
         """
-        extractable = self.common_fams - self.extracted_fams
-        if extractable:
+        if self.extractable:
+            extractable = self.common_fams - self.extracted_fams
             fam = iter(extractable).next()
             ranges = []
 
             for variant in self.variants:
                 req = variant.get(fam)
-                ranges.append(req.range)
+                if not ranges or req.range != ranges[-1]:
+                    ranges.append(req.range)
 
-            slice = copy.copy(self)
-            slice.extracted_fams = self.extracted_fams | set([fam])
+            slice_ = copy.copy(self)
+            slice_.extracted_fams = self.extracted_fams | set([fam])
 
-            range = ranges[0].union(ranges[1:])
-            common_req = Requirement.construct(fam, range)
-            return (slice, common_req)
+            range_ = ranges[0].union(ranges[1:])
+            common_req = Requirement.construct(fam, range_)
+            return (slice_, common_req)
         else:
             return (self, None)
 
     def split(self):
         """Split the slice."""
-        assert(not self.extractable)
+        # assert(not self.extractable)
         if len(self.variants) == 1:
             return None
         else:
-            latest_variant = self.variants[0]
+            it = enumerate(self.variants)
+            latest_variant = it.next()[1]
             split_fams = None
             nleading = 1
 
             if len(self.variants) > 2:
                 fams = latest_variant.request_fams - self.extracted_fams
                 if fams:
-                    other_variants = self.variants[1:]
-                    for j, variant in enumerate(other_variants):
+                    for j, variant in it:
                         next_fams = variant.request_fams & fams
                         if next_fams:
                             fams = next_fams
                         else:
                             split_fams = fams
-                            nleading = 1 + j
+                            nleading = j
                             break
 
-            slice = self._copy(self.variants[:nleading])
+            slice_ = self._copy(self.variants[:nleading])
             next_slice = self._copy(self.variants[nleading:])
 
             if self.pr:
@@ -518,18 +529,18 @@ class _PackageVariantSlice(_Common):
                     a.extend([nleading, ", ".join(split_fams)])
                 self.pr(s, *a)
 
-            return (slice, next_slice)
+            return (slice_, next_slice)
 
     def dump(self):
         print self.package_name
         print '\n'.join(map(str, self.variants))
 
     def _copy(self, new_variants):
-        slice = copy.copy(self)
-        slice.variants = new_variants
-        slice.extracted_fams = set()
-        slice._update()
-        return slice
+        slice_ = copy.copy(self)
+        slice_.variants = new_variants
+        slice_.extracted_fams = set()
+        slice_._update()
+        return slice_
 
     def _update(self):
         # range
@@ -541,9 +552,9 @@ class _PackageVariantSlice(_Common):
         self.fam_requires = set()
 
         for variant in self.variants:
-            self.common_fams &= variant.request_fams
-            self.fam_requires |= variant.request_fams
-            self.fam_requires |= variant.conflict_request_fams
+            self.common_fams.intersection_update(variant.request_fams)
+            self.fam_requires.update(variant.request_fams)
+            self.fam_requires.update(variant.conflict_request_fams)
 
     def __len__(self):
         return len(self.variants)
@@ -582,10 +593,9 @@ class _PackageVariantSlice(_Common):
 
 
 class PackageVariantCache(object):
-    def __init__(self, package_paths=None, timestamp=0, building=False,
+    def __init__(self, package_paths, timestamp=0, building=False,
                  package_load_callback=None):
-        self.package_paths = (config.packages_path if package_paths is None
-                              else package_paths)
+        self.package_paths = package_paths
         self.timestamp = timestamp
         self.building = building
         self.package_load_callback = package_load_callback
@@ -1324,7 +1334,7 @@ class Solver(_Common):
     """
     max_verbosity = 3
 
-    def __init__(self, package_requests, package_paths=None, timestamp=0,
+    def __init__(self, package_requests, package_paths, timestamp=0,
                  callback=None, building=False, optimised=True, verbosity=0,
                  buf=None, package_load_callback=None, max_depth=0,
                  package_cache=None):
@@ -1333,8 +1343,7 @@ class Solver(_Common):
         Args:
             package_requests: List of Requirement objects representing the
                 request.
-            package_paths: List of paths to search for pkgs, defaults to
-                config.packages_path.
+            package_paths: List of paths to search for pkgs.
             building: True if we're resolving for a build.
             optimised: Run the solver in optimised mode. This is only ever set
                 to False for testing purposes.
@@ -1355,8 +1364,7 @@ class Solver(_Common):
                 `Solver` instances.
         """
         self.package_requests = package_requests
-        self.package_paths = (config.packages_path if package_paths is None
-                              else package_paths)
+        self.package_paths = package_paths
         self.pr = _Printer(verbosity, buf=buf)
         self.optimised = optimised
         self.timestamp = timestamp
