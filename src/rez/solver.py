@@ -851,6 +851,23 @@ class _ResolvePhase(_Common):
                 if i != j:
                     self.pending_reducts.add((i, j))
 
+
+    def _create_phase(self, scopes, failure_reason, extractions, status=None):
+        phase = copy.copy(self)
+        phase.scopes = scopes
+        phase.failure_reason = failure_reason
+        phase.extractions = extractions
+        phase.extractions = extractions
+        phase.pending_reducts = set()
+
+        if status is None:
+            phase.status = (SolverStatus.solved if phase._is_solved()
+                            else SolverStatus.exhausted)
+        else:
+            phase.status = status
+        return phase
+
+
     def solve(self):
         """Attempt to solve the phase."""
         if self.status != SolverStatus.pending:
@@ -860,21 +877,6 @@ class _ResolvePhase(_Common):
         failure_reason = None
         extractions = {}
         pending_reducts = self.pending_reducts.copy()
-
-        def _create_phase(status=None):
-            phase = copy.copy(self)
-            phase.scopes = scopes
-            phase.failure_reason = failure_reason
-            phase.extractions = extractions
-            phase.extractions = extractions
-            phase.pending_reducts = set()
-
-            if status is None:
-                phase.status = (SolverStatus.solved if phase._is_solved()
-                                else SolverStatus.exhausted)
-            else:
-                phase.status = status
-            return phase
 
         while True:
             # iteratively extract until no more extractions possible
@@ -900,7 +902,7 @@ class _ResolvePhase(_Common):
                         req1, req2 = request_list.conflict
                         conflict = DependencyConflict(req1, req2)
                         failure_reason = DependencyConflicts([conflict])
-                        return _create_phase(SolverStatus.failed)
+                        return self._create_phase(scopes, failure_reason, extractions, SolverStatus.failed)
                     else:
                         if self.pr:
                             self.pr("merged extractions: %s", request_list)
@@ -923,7 +925,7 @@ class _ResolvePhase(_Common):
                                 conflict = DependencyConflict(
                                     req, scope.package_request)
                                 failure_reason = DependencyConflicts([conflict])
-                                return _create_phase(SolverStatus.failed)
+                                return self._create_phase(scopes, failure_reason, extractions, SolverStatus.failed)
                             elif scope_ is not scope:
                                 scopes[i] = scope_
                                 for j in range(len(scopes)):
@@ -977,7 +979,7 @@ class _ResolvePhase(_Common):
                         scopes[i].package_request)
                     if new_scope is None:
                         failure_reason = TotalReduction(reductions)
-                        return _create_phase(SolverStatus.failed)
+                        return self._create_phase(scopes, failure_reason, extractions, SolverStatus.failed)
                     elif new_scope is not scopes[j]:
                         scopes[j] = new_scope
                         for i in range(len(scopes)):
@@ -986,7 +988,7 @@ class _ResolvePhase(_Common):
 
                     pending_reducts -= set([(i, j)])
 
-        return _create_phase()
+        return self._create_phase(scopes, failure_reason, extractions)
 
     def finalise(self):
         """Remove conflict requests, detect cyclic dependencies, and reorder
@@ -1336,7 +1338,7 @@ class Solver(_Common):
 
     def __init__(self, package_requests, package_paths, timestamp=0,
                  callback=None, building=False, optimised=True, verbosity=0,
-                 buf=None, package_load_callback=None, max_depth=0,
+                 buf=None, package_load_callback=None, max_depth=None,
                  package_cache=None):
         """Create a Solver.
 
@@ -1525,7 +1527,15 @@ class Solver(_Common):
             if self.pr:
                 self.pr("new phase: %s", phase)
 
-        new_phase = phase.solve()
+        if self.max_depth == 0:
+            new_phase = phase._create_phase(phase.scopes[:], None, {})
+            for scope in [s for s in new_phase.scopes if s.variant_slice is not None]:
+                scope.variant_slice.extracted_fams = scope.variant_slice.common_fams
+            new_phase.status = SolverStatus.solved
+            final_phase = new_phase.finalise()
+            self._push_phase(final_phase)
+        else:
+            new_phase = phase.solve()
         self.solve_count += 1
         self.pr.subheader("RESULT:")
 

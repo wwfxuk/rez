@@ -94,6 +94,7 @@ class Resolver(object):
                       package_load_callback=self.package_load_callback,
                       building=self.building,
                       verbosity=self.verbosity,
+                      max_depth=self.verbosity,
                       buf=self.buf)
 
         if self.start_depth:
