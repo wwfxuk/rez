@@ -94,7 +94,6 @@ class Resolver(object):
                       package_load_callback=self.package_load_callback,
                       building=self.building,
                       verbosity=self.verbosity,
-                      max_depth=self.verbosity,
                       buf=self.buf)
 
         if self.start_depth:
@@ -123,7 +122,7 @@ class Resolver(object):
             solver.solve()
         else:
             # perform a solve that loads all relevant packages
-            solver = Solver(**kwargs)
+            solver = Solver(max_depth=self.max_depth, **kwargs)
             solver.solve()
 
         self._set_result(solver)
