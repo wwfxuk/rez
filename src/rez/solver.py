@@ -1543,6 +1543,9 @@ class Solver(_Common):
             for scope in [s for s in new_phase.scopes if s.variant_slice is not None]:
                 scope.variant_slice.extracted_fams = scope.variant_slice.common_fams
             new_phase.status = SolverStatus.solved
+            for scope in [s for s in new_phase.scopes if s.variant_slice is not None
+                                                    and len(s.variant_slice) > 1]:
+                scope.variant_slice.variants = [scope.variant_slice.variants[0]]
             final_phase = new_phase.finalise()
             self._push_phase(final_phase)
         else:
