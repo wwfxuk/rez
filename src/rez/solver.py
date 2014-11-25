@@ -868,8 +868,11 @@ class _ResolvePhase(_Common):
         return phase
 
 
-    def solve(self):
-        """Attempt to solve the phase."""
+    def solve(self, level=None):
+        """Attempt to solve the phase.
+
+         Args:
+            level: (int) If not None, stop searching for requirements when number of level is reached."""
         if self.status != SolverStatus.pending:
             return self
 
@@ -880,7 +883,7 @@ class _ResolvePhase(_Common):
 
         while True:
             # iteratively extract until no more extractions possible
-            while True:
+            while level is None or level > 0:
                 self.pr.subheader("EXTRACTING:")
                 common_requests = []
 
@@ -893,6 +896,8 @@ class _ResolvePhase(_Common):
                             extractions[k] = common_request
                             scopes[i] = scope_
                         else:
+                            if level is not None:
+                                level -= 1
                             break
 
                 if common_requests:
@@ -955,6 +960,8 @@ class _ResolvePhase(_Common):
                             for j in range(n, n + m):
                                 pending_reducts.add((i, j))
                 else:
+                    if level is not None:
+                        level -= 1
                     break
 
             if not pending_reducts:
@@ -1338,7 +1345,7 @@ class Solver(_Common):
 
     def __init__(self, package_requests, package_paths, timestamp=0,
                  callback=None, building=False, optimised=True, verbosity=0,
-                 buf=None, package_load_callback=None, max_depth=None,
+                 buf=None, package_load_callback=None, max_depth=0, max_level=None,
                  package_cache=None):
         """Create a Solver.
 
@@ -1361,6 +1368,8 @@ class Solver(_Common):
                 that can be loaded for any given package name. This effectively
                 trims the search space - only the highest N package versions are
                 searched. See associated `is_partial` property.
+            max_level (int): If not None, this value limits the number of levels
+                of requirements to load
             package_cache (`PackageVariantCache`): Provided variant cache. The
                 `Resolver` may use this to share a single cache across several
                 `Solver` instances.
@@ -1372,6 +1381,8 @@ class Solver(_Common):
         self.timestamp = timestamp
         self.callback = callback
         self.max_depth = max_depth
+        self.max_level = max_level
+        self.level = self.max_level
         self.request_list = None
 
         self.phase_stack = None
@@ -1527,7 +1538,7 @@ class Solver(_Common):
             if self.pr:
                 self.pr("new phase: %s", phase)
 
-        if self.max_depth == 0:
+        if self.level == 0:
             new_phase = phase._create_phase(phase.scopes[:], None, {})
             for scope in [s for s in new_phase.scopes if s.variant_slice is not None]:
                 scope.variant_slice.extracted_fams = scope.variant_slice.common_fams
@@ -1535,7 +1546,9 @@ class Solver(_Common):
             final_phase = new_phase.finalise()
             self._push_phase(final_phase)
         else:
-            new_phase = phase.solve()
+            new_phase = phase.solve(self.level)
+            if self.level is not None:
+                self.level -= 1
         self.solve_count += 1
         self.pr.subheader("RESULT:")
 
