@@ -407,12 +407,13 @@ class ActionManager(object):
         self.interpreter.info(value)
 
     def error(self, value):
-        value = self._format(value)
+        value = str(value)
         self.add_action(Error(value))
         self.interpreter.error(value)
 
     def command(self, value):
-        value = self._format(value)
+        #value = self._format(value)
+        value = str(value)
         self.add_action(Command(value))
         self.interpreter.command(value)
 
