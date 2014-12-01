@@ -1,2 +1,3 @@
 name = 'rez'
-version = 'mikros2.1.1'
+version = 'mikros2.1.2'
+
