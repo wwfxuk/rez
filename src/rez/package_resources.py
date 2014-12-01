@@ -56,6 +56,7 @@ package_schema = Schema({
     Optional('pre_commands'):           rex_command,
     Optional('commands'):               rex_command,
     Optional('post_commands'):          rex_command,
+    Optional('post_install'):           rex_command,
 
     # custom keys
     Optional('custom'):                 object,
@@ -236,7 +237,7 @@ class BasePackageResource(FileResource):
             Optional('private_build_requires'): [Use(Requirement)],
             Optional('pre_commands'):           rex_schema,
             Optional('commands'):               rex_schema,
-            Optional('post_commands'):          rex_schema,
+            #Optional('post_commands'):          rex_schema,
 
             # backwards compatibility for rez-egg-install- generated packages
             Optional('unsafe_name'):            object,
