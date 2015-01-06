@@ -299,8 +299,8 @@ class _PackageVariantList(_Common):
         entries = ([x.version, x] for x in it)
         self.entries = sorted(entries, key=lambda x: x[0], reverse=True)
         if not self.entries:
-            raise PackageFamilyNotFoundError("package family not found: %s, %s"
-                                             % (package_name, self.package_paths))
+            raise PackageFamilyNotFoundError("package family not found: %s"
+                                             % package_name)
 
     def get_intersection(self, range, max_packages=0):
         """Get a list of variants that intersect with the given range.
@@ -851,28 +851,8 @@ class _ResolvePhase(_Common):
                 if i != j:
                     self.pending_reducts.add((i, j))
 
-
-    def _create_phase(self, scopes, failure_reason, extractions, status=None):
-        phase = copy.copy(self)
-        phase.scopes = scopes
-        phase.failure_reason = failure_reason
-        phase.extractions = extractions
-        phase.extractions = extractions
-        phase.pending_reducts = set()
-
-        if status is None:
-            phase.status = (SolverStatus.solved if phase._is_solved()
-                            else SolverStatus.exhausted)
-        else:
-            phase.status = status
-        return phase
-
-
-    def solve(self, level=None):
-        """Attempt to solve the phase.
-
-         Args:
-            level: (int) If not None, stop searching for requirements when number of level is reached."""
+    def solve(self):
+        """Attempt to solve the phase."""
         if self.status != SolverStatus.pending:
             return self
 
@@ -881,9 +861,23 @@ class _ResolvePhase(_Common):
         extractions = {}
         pending_reducts = self.pending_reducts.copy()
 
+        def _create_phase(status=None):
+            phase = copy.copy(self)
+            phase.scopes = scopes
+            phase.failure_reason = failure_reason
+            phase.extractions = extractions
+            phase.pending_reducts = set()
+
+            if status is None:
+                phase.status = (SolverStatus.solved if phase._is_solved()
+                                else SolverStatus.exhausted)
+            else:
+                phase.status = status
+            return phase
+
         while True:
             # iteratively extract until no more extractions possible
-            while level is None or level > 0:
+            while True:
                 self.pr.subheader("EXTRACTING:")
                 common_requests = []
 
@@ -896,8 +890,6 @@ class _ResolvePhase(_Common):
                             extractions[k] = common_request
                             scopes[i] = scope_
                         else:
-                            if level is not None:
-                                level -= 1
                             break
 
                 if common_requests:
@@ -907,7 +899,7 @@ class _ResolvePhase(_Common):
                         req1, req2 = request_list.conflict
                         conflict = DependencyConflict(req1, req2)
                         failure_reason = DependencyConflicts([conflict])
-                        return self._create_phase(scopes, failure_reason, extractions, SolverStatus.failed)
+                        return _create_phase(SolverStatus.failed)
                     else:
                         if self.pr:
                             self.pr("merged extractions: %s", request_list)
@@ -930,7 +922,8 @@ class _ResolvePhase(_Common):
                                 conflict = DependencyConflict(
                                     req, scope.package_request)
                                 failure_reason = DependencyConflicts([conflict])
-                                return self._create_phase(scopes, failure_reason, extractions, SolverStatus.failed)
+                                return _create_phase(SolverStatus.failed)
+                            # TODO this may have no effect...
                             elif scope_ is not scope:
                                 scopes[i] = scope_
                                 for j in range(len(scopes)):
@@ -960,8 +953,6 @@ class _ResolvePhase(_Common):
                             for j in range(n, n + m):
                                 pending_reducts.add((i, j))
                 else:
-                    if level is not None:
-                        level -= 1
                     break
 
             if not pending_reducts:
@@ -986,7 +977,7 @@ class _ResolvePhase(_Common):
                         scopes[i].package_request)
                     if new_scope is None:
                         failure_reason = TotalReduction(reductions)
-                        return self._create_phase(scopes, failure_reason, extractions, SolverStatus.failed)
+                        return _create_phase(SolverStatus.failed)
                     elif new_scope is not scopes[j]:
                         scopes[j] = new_scope
                         for i in range(len(scopes)):
@@ -995,7 +986,7 @@ class _ResolvePhase(_Common):
 
                     pending_reducts -= set([(i, j)])
 
-        return self._create_phase(scopes, failure_reason, extractions)
+        return _create_phase()
 
     def finalise(self):
         """Remove conflict requests, detect cyclic dependencies, and reorder
@@ -1345,7 +1336,7 @@ class Solver(_Common):
 
     def __init__(self, package_requests, package_paths, timestamp=0,
                  callback=None, building=False, optimised=True, verbosity=0,
-                 buf=None, package_load_callback=None, max_depth=0, max_level=None,
+                 buf=None, package_load_callback=None, max_depth=0,
                  package_cache=None):
         """Create a Solver.
 
@@ -1368,8 +1359,6 @@ class Solver(_Common):
                 that can be loaded for any given package name. This effectively
                 trims the search space - only the highest N package versions are
                 searched. See associated `is_partial` property.
-            max_level (int): If not None, this value limits the number of levels
-                of requirements to load
             package_cache (`PackageVariantCache`): Provided variant cache. The
                 `Resolver` may use this to share a single cache across several
                 `Solver` instances.
@@ -1381,8 +1370,6 @@ class Solver(_Common):
         self.timestamp = timestamp
         self.callback = callback
         self.max_depth = max_depth
-        self.max_level = max_level
-        self.level = self.max_level
         self.request_list = None
 
         self.phase_stack = None
@@ -1538,20 +1525,7 @@ class Solver(_Common):
             if self.pr:
                 self.pr("new phase: %s", phase)
 
-        if self.level == 0:
-            new_phase = phase._create_phase(phase.scopes[:], None, {})
-            for scope in [s for s in new_phase.scopes if s.variant_slice is not None]:
-                scope.variant_slice.extracted_fams = scope.variant_slice.common_fams
-            new_phase.status = SolverStatus.solved
-            for scope in [s for s in new_phase.scopes if s.variant_slice is not None
-                                                    and len(s.variant_slice) > 1]:
-                scope.variant_slice.variants = [scope.variant_slice.variants[0]]
-            final_phase = new_phase.finalise()
-            self._push_phase(final_phase)
-        else:
-            new_phase = phase.solve(self.level)
-            if self.level is not None:
-                self.level -= 1
+        new_phase = phase.solve()
         self.solve_count += 1
         self.pr.subheader("RESULT:")
 

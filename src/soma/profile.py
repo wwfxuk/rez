@@ -1,15 +1,15 @@
 from rez.util import print_colored_columns, propertycache, \
-    readable_time_duration
+    readable_time_duration, _missing
 from rez.config import config
 from rez.resolved_context import ResolvedContext
-from rez.colorize import warning, heading, critical, alias as alias_color, \
-    combine, bright, Printer
+from rez.colorize import warning, heading, error, alias as alias_color, \
+    bright, soma_lock, Printer
 from rez.vendor.version.requirement import Requirement
 from rez.vendor.version.util import VersionError
 from rez.vendor.schema.schema import Schema, SchemaError, Optional, Or, And
 from soma.file_store import FileStatus
 from soma.exceptions import SomaNotFoundError, SomaDataError
-from soma.util import glob_transform, alias_str, get_timestamp_str, \
+from soma.util import glob_transform, alias_str, get_timestamp_str, combine, \
     print_columns, dump_profile_yaml
 import time
 import fnmatch
@@ -66,9 +66,8 @@ class Profile(object):
     See Soma documentation for a detailed overview of override features (not all
     are shown in this comment).
     """
-    schema = Schema({
+    profile_schema = Schema({
         Optional("new"): Or([basestring], None),
-        Optional("locked"): int,
         Optional("requires"): [basestring],
         Optional("tools"): [Or(basestring,
                                And(Schema({basestring: basestring}),
@@ -76,23 +75,45 @@ class Profile(object):
                             )]
     })
 
-    def __init__(self, name, parent, overrides):
-        """
-        Args:
-            parent (`ProductionConfig`).
-            overrides (list): List of (level, dict) tuples.
-        """
+    lock_schema = Schema({"locked": Or(None, int)})
+
+    def __init__(self, name, parent, overrides, lock_overrides=None):
+        """Do not create directly, """
         self.name = name
         self.parent = parent
 
+        # profile overrides
+        self._levels = []
         self._overrides = []
         for level, data in overrides:
+            self._levels.append(level)
             try:
-                data_ = self.schema.validate(data)
+                data_ = self.profile_schema.validate(data)
                 self._overrides.append((level, data_))
             except SchemaError as e:
                 raise SomaDataError("Invalid data in %r: %s"
                                     % (self._filepath(level), str(e)))
+
+        # lock overrides
+        self._lock_overrides = []
+        for level, data in (lock_overrides or []):
+            try:
+                data_ = self.lock_schema.validate(data)
+                self._lock_overrides.append((level, data_))
+            except SchemaError as e:
+                raise SomaDataError("Invalid data in %r: %s"
+                                    % (self._lock_filepath(level), str(e)))
+
+    @property
+    def levels(self):
+        """The levels that the profile has overrides in.
+
+        Zero is the first path in the configured searchpath.
+
+        Returns:
+            list of str: Override levels.
+        """
+        return self._levels
 
     @propertycache
     def lock(self):
@@ -234,9 +255,12 @@ class Profile(object):
         if not logs_:
             raise SomaNotFoundError("Unknown file handle %r in profile %r"
                                     % (handle, self.name))
-        level, _, commit_time, author_name, file_status = logs_[0]
+        level, _, commit_time, author_name, file_status, is_profile = logs_[0]
+        if is_profile:
+            filename = "%s.yaml" % self.name
+        else:
+            filename = ".%s.lock.yaml" % self.name
 
-        filename = "%s.yaml" % self.name
         store = self.parent.stores[level]
         content, _, _, _ = store.read_from_handle(filename, handle)
 
@@ -254,16 +278,18 @@ class Profile(object):
             until (`DateTime` or int): Only return entries at or before this time.
 
         Returns:
-            List of 5-tuples where each contains:
+            List of 6-tuples where each contains:
             - int: Level of the override;
             - str: File handle;
             - int: Epoch time of the file commit;
             - str: Author name;
-            - `FileStatus` object.
+            - `FileStatus` object;
+            - bool: True if this is a profile commit, False if a lock commit.
 
             The list is ordered from most recent commit to last.
         """
         filename = "%s.yaml" % self.name
+        lock_filename = ".%s.lock.yaml" % self.name
         all_entries = []
 
         # note that all levels have to be checked, not just those currently
@@ -271,9 +297,17 @@ class Profile(object):
         # in the log as a changed one
         for level in range(self.parent.num_levels):
             store = self.parent.stores[level]
+
+            # profile commits
             entries = store.file_logs(filename=filename, limit=limit,
                                       since=since, until=until)
-            entries = (tuple([level] + list(x) for x in entries))
+            entries = (tuple(([level] + list(x) + [True]) for x in entries))
+            all_entries.extend(entries)
+
+            # lock commits
+            entries = store.file_logs(filename=lock_filename, limit=limit,
+                                      since=since, until=until)
+            entries = (tuple(([level] + list(x) + [False]) for x in entries))
             all_entries.extend(entries)
 
         entries = sorted(all_entries, key=lambda x: x[2], reverse=True)
@@ -386,11 +420,7 @@ class Profile(object):
         rows = self._get_log_rows(logs_, verbose=verbose)
         if highlight_index is not None:
             row = rows[highlight_index + 2]  # skip header
-            color = row[-1]
-            if color is None:
-                color = bright
-            else:
-                color = combine(color, bright)
+            color = combine(row[-1], bright)
             row[-1] = color
 
         print_colored_columns(rows)
@@ -412,6 +442,7 @@ class Profile(object):
                 highlight_index = indexes[0]
 
         # calc width formatting
+        lock_width = 18  # eg '1415403190(-26m)'
         rows = self._get_log_rows(logs_, verbose=verbose)
         rows = rows[:1] + rows[2:]  # ditch header underline
         maxwidths = []
@@ -432,59 +463,60 @@ class Profile(object):
             row_[0] = status
             if verbose:
                 # add trailing LOCK column
-                row_[-1] = lock
+                row_[-1] = lock + (' ' * (lock_width - len(lock)))
                 row_.append(color)
             else:
                 row_[-1] = color
 
             print_colored_columns([row_])
 
-        def _callback(_1, index, profile_, changed):
+        def _callback(_logs, index, profile_, changed):
             color=None
+            lock = '-'
             if profile_ is None:
-                status = "??"
-                color = critical
+                status = '  ??'
+                color = error
             elif profile_ == -1:
-                status = "!!"
-                color = critical
-            elif not changed:  # an ineffective entry
-                status = " -"
-                color = warning
+                status = '  !!'
+                color = error
             else:
-                s = ''
-                if "requires" in changed:
-                    s += 'P'
-                if "tools" in changed:
-                    s += 'T'
-                if len(s) < 2:
-                    s = ' ' + s
-                status = s
+                if changed:
+                    s = ''
+                    if "requires" in changed:
+                        s += 'P'
+                    if "tools" in changed:
+                        s += 'T'
+                    status = s
+                else:  # an ineffective entry
+                    status = '-'
+                    color = warning
 
-            if profile_.lock:
-                t_str = get_timestamp_str(profile_.lock, short=True)
-                lock = "%d(%s)" % (profile_.lock, t_str)
-            else:
-                lock = '-'
+                log_entry = _logs[index]
+                if not log_entry[-1]:
+                    status += 'L'
+                status += log_entry[4].abbrev
+                status = ((4 - len(status)) * ' ') + status
+
+                if profile_.lock:
+                    t_str = get_timestamp_str(profile_.lock, short=True)
+                    lock = "%d(%s)" % (profile_.lock, t_str)
+                    color = combine(color, soma_lock)
 
             if index == highlight_index:
-                if color is None:
-                    color = bright
-                else:
-                    color = combine(color, bright)
+                color = combine(color, bright)
 
             _print_row(rows[index], status, lock, color)
             return True
 
         if verbose:
             # adds a trailing LOCK column
-            _print_row(rows[0], '  ', "LOCK", heading)  # heading
+            _print_row(rows[0], '    ', "LOCK", heading)  # heading
             underline_row = ['-' * x for x in maxwidths] + [heading]
-            lock_width = len("1415300567")  # just a random epoch string
-            _print_row(underline_row, '--', '-' * lock_width, heading)
+            _print_row(underline_row, '----', '-' * lock_width, heading)
         else:
-            _print_row(rows[0], '  ', '', heading)  # heading
+            _print_row(rows[0], '    ', '', heading)  # heading
             underline_row = ['-' * x for x in maxwidths] + [heading]
-            _print_row(underline_row, '--', '', heading)
+            _print_row(underline_row, '----', '', heading)
 
         rows = rows[1:]
         self._effective_logs(logs_, packages, tools, include_ineffective, limit,
@@ -612,7 +644,7 @@ class Profile(object):
             row.append(color)
             rows.append(row)
 
-        if lock:
+        if lock and self._locks:
             def _print_lock_entry(entry):
                 lock_time = entry
                 t_str = get_timestamp_str(lock_time, short=True)
@@ -620,11 +652,11 @@ class Profile(object):
 
             _add_rows(lock_rows, self._locks, _print_lock_entry)
 
-        if packages:
+        if packages and self._requires:
             for overrides in self._requires:
                 _add_rows(package_rows, overrides)
 
-        if tools:
+        if tools and self._tools:
             def _print_tool_entry(entry):
                 alias, command = entry
                 return alias_str(alias, command)
@@ -728,7 +760,7 @@ class Profile(object):
     @propertycache
     def _locks(self):
         # a list of (epoch, level) 2-tuples. The last entry is the active lock.
-        return [(y, x) for x, y in self._get_overrides("locked")]
+        return [(y, x) for x, y in self._get_lock_overrides()]
 
     @propertycache
     def _requires(self):
@@ -929,15 +961,23 @@ class Profile(object):
         row.extend(["AUTHOR", "DATE", heading])
         rows.extend([row, [None, heading]])
 
-        for level, handle, commit_time, author, file_status in logs_:
+        for level, handle, commit_time, author, file_status, is_profile in logs_:
             color = None
             level_str = self.parent._overrides_str(level)
             path = self.parent.searchpath[level]
             time_str = "%d - %s" % (commit_time, get_timestamp_str(commit_time))
 
-            row = [file_status.abbrev, level_str, path]
+            if not is_profile:
+                color = combine(color, soma_lock)
+
+            if is_profile:
+                status = ' ' + file_status.abbrev
+            else:
+                status = 'L' + file_status.abbrev
+
+            row = [status, level_str, path]
             if file_status == FileStatus.deleted:
-                color = warning
+                color = combine(color, warning)
             if verbose:
                 row.append(handle)
             row.extend([author, time_str, color])
@@ -953,17 +993,27 @@ class Profile(object):
 
         def _compare(p1, p2):
             changed = set()
-            if packages and (p1.requires != p2.requires):
-                changed.add("requires")
-            if tools and (p1.tools != p2.tools):
-                changed.add("tools")
+
+            if packages:
+                p1_requires = getattr(p1, "requires", None)
+                p2_requires = getattr(p2, "requires", None)
+                if p1_requires != p2_requires:
+                    changed.add("requires")
+
+            if tools:
+                p1_tools = getattr(p1, "tools", None)
+                p2_tools = getattr(p2, "tools", None)
+                if p1_tools != p2_tools:
+                    changed.add("tools")
+
             return changed
 
         entries = []
         prev_profile = None
         nlogs = len(logs_)
 
-        for i, (level, handle, commit_time, author, file_status) in enumerate(logs_):
+        for i, log_entry in enumerate(logs_):
+            level, handle, commit_time, author, file_status, is_profile = log_entry
             if progress_callback and not progress_callback(i, nlogs):
                 return entries
 
@@ -1042,9 +1092,26 @@ class Profile(object):
 
         return list(reversed(overrides))
 
+    def _get_lock_overrides(self):
+        overrides = []
+        for level, data in reversed(self._lock_overrides):
+            value = data.get("locked", _missing)
+            if value is _missing:
+                continue
+            elif value is None:
+                break  # stops inheritence, like 'new' in profile.yamls
+            else:
+                overrides.append((level, value))
+
+        return list(reversed(overrides))
+
     def _filepath(self, level):
         path = self.parent.stores[level].path
         return os.path.join(path, "%s.yaml" % self.name)
+
+    def _lock_filepath(self, level):
+        path = self.parent.stores[level].path
+        return os.path.join(path, ".%s.lock.yaml" % self.name)
 
     @classmethod
     def _is_removal(cls, value):
