@@ -1543,9 +1543,18 @@ class Solver(_Common):
             for scope in [s for s in new_phase.scopes if s.variant_slice is not None]:
                 scope.variant_slice.extracted_fams = scope.variant_slice.common_fams
             new_phase.status = SolverStatus.solved
+            found = False
             for scope in [s for s in new_phase.scopes if s.variant_slice is not None
                                                     and len(s.variant_slice) > 1]:
-                scope.variant_slice.variants = [scope.variant_slice.variants[0]]
+                for variant in scope.variant_slice.variants:
+                    for req in variant.requires_list.requirements:
+                        for oscope in [s for s in new_phase.scopes if s != scope]:
+                            if ( oscope.package_name == req.name and
+                                 oscope.package_request.range == req.range):
+                                found = True
+                                break
+                if found:
+                    scope.variant_slice.variants = [variant]
             final_phase = new_phase.finalise()
             self._push_phase(final_phase)
         else:
