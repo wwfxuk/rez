@@ -14,7 +14,8 @@ logging_conf_file = os.environ.get(
     os.path.join(module_root_path, 'logging.conf'))
 #logging.config.fileConfig(logging_conf_file, disable_existing_loggers=False)
 
-consoleHandler = logging.StreamHandler()
+from rez.colorize import ColorizedStreamHandler
+consoleHandler = ColorizedStreamHandler()
 consoleHandler.name = 'console'
 
 logging.config.dictConfig(
