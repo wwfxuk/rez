@@ -2,6 +2,7 @@
 import sys
 import os.path
 import inspect
+import unittest
 
 
 _test_dir = os.path.dirname(inspect.getfile(inspect.currentframe()))
@@ -20,3 +21,6 @@ from rez.tests.test_config import TestConfig
 from rez.tests.test_release import TestRelease
 from rez.tests.test_completion import TestCompletion
 from rez.tests.test_version import TestVersions
+
+if __name__ == '__main__':
+    unittest.main()
