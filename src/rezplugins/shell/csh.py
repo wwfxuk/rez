@@ -1,6 +1,7 @@
 """
 CSH shell
 """
+import pipes
 import os.path
 import subprocess
 from rez.config import config
@@ -107,7 +108,14 @@ class CSH(UnixShell):
         self._addline("unsetenv %s" % key)
 
     def alias(self, key, value):
-        self._addline("alias %s '%s';" % (key, value))
+        if hasattr(value, "__iter__"):
+            value = ' '.join(map(pipes.quote, value))
+
+        self._addline('alias %s "%s";' % (key, value))
+
+    def unalias(self, key):
+        cmd = "unalias {key}"
+        self._addline(cmd.format(key=key))
 
     def source(self, value):
         value = os.path.expanduser(value)

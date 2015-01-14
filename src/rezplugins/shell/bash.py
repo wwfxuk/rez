@@ -1,6 +1,8 @@
 """
 Bash shell
 """
+import sys
+import select
 import os
 import os.path
 from rez.shells import UnixShell
@@ -27,10 +29,11 @@ class Bash(SH):
             cls._overruled_option('stdin', 'command', stdin)
             cls._overruled_option('rcfile', 'command', rcfile)
             stdin = False
-            rcfile = False
+            #rcfile = False
         if stdin:
             cls._overruled_option('rcfile', 'stdin', rcfile)
             rcfile = False
+            #rcFile = False
         return (rcfile, norc, stdin, command)
 
     @classmethod
@@ -44,6 +47,10 @@ class Bash(SH):
 
         if (command is not None) or stdin:
             envvar = 'BASH_ENV'
+            if rcfile or norc:
+                do_rcfile = True
+                if rcfile and os.path.exists(os.path.expanduser(rcfile)):
+                    files.append(rcfile)
             path = os.getenv(envvar)
             if path and os.path.isfile(os.path.expanduser(path)):
                 files.append(path)

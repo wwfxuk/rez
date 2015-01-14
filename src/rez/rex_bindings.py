@@ -49,6 +49,16 @@ class VersionBinding(Binding):
         self.__version = version
 
     @property
+    def raw(self):
+        """Raw string version."""
+        return str(self.__version)
+
+    @property
+    def full(self):
+        """Full version as a tuple (major, minor, patch)."""
+        return (str(self.major), str(self.minor), str(self.patch))
+
+    @property
     def major(self):
         return self[0]
 
@@ -59,9 +69,6 @@ class VersionBinding(Binding):
     @property
     def patch(self):
         return self[2]
-
-    def as_tuple(self):
-        return self[:len(self)]
 
     def __attr_error(self, attr):
         raise AttributeError("version object has no attribute '%s'" % attr)

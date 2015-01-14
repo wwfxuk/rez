@@ -121,7 +121,8 @@ class ResolvedContext(object):
                  building=False, caching=None, package_paths=None,
                  add_implicit_packages=True, max_fails=-1, time_limit=-1,
                  callback=None, package_load_callback=None, max_depth=None,
-                 start_depth=None, buf=None):
+                 start_depth=None, max_level=None, buf=None,
+                 callbacks=["pre_commands", "commands", "post_commands"]):
         """Perform a package resolve, and store the result.
 
         Args:
@@ -158,8 +159,11 @@ class ResolvedContext(object):
                 perform something like a breadth-first search - we put off
                 loading older packages with the assumption that they aren't being
                 used anymore. If None, the system configured value is used.
+            max_level (int): If not None, this value limits the number of levels
+                of requirements to load
             buf (file-like object): Where to print verbose output to, defaults
                 to stdout.
+            callbacks (list): Functions in package.py to execute
         """
         self.load_path = None
 
@@ -173,6 +177,8 @@ class ResolvedContext(object):
                           else max_depth)
         self.start_depth = (config.resolve_start_depth if start_depth is None
                             else start_depth)
+        self.max_level = max_level
+        self.callbacks = callbacks
 
         self._package_requests = []
         for req in package_requests:
@@ -233,6 +239,7 @@ class ResolvedContext(object):
                             verbosity=verbosity,
                             max_depth=self.max_depth,
                             start_depth=self.start_depth,
+                            max_level=self.max_level,
                             buf=buf)
         resolver.solve()
 
@@ -1088,8 +1095,9 @@ class ResolvedContext(object):
                 return immediately. If None, will default to blocking if the
                 shell is interactive.
             actions_callback: Callback with signature (RexExecutor). This lets
-                the user append custom actions to the context, such as setting
-                extra environment variables.
+                the user add custom actions to the context, such as setting
+                extra environment variables. These actions are run before package
+                actions.
             context_filepath: If provided, the context file will be written
                 here, rather than to the default location (which is in a
                 tempdir). If you use this arg, you are responsible for cleaning
@@ -1384,7 +1392,7 @@ class ResolvedContext(object):
                                       variant=VariantBinding(pkg))
 
         # commands
-        for attr in ("pre_commands", "commands", "post_commands"):
+        for attr in self.callbacks:
             found = False
             for pkg in resolved_pkgs:
                 commands = getattr(pkg, attr)

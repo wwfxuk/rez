@@ -106,6 +106,14 @@ def create_forwarding_script(filepath, module, func_name, *nargs, **kwargs):
              | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
+def safe_print(msg, buf=sys.stdout):
+    # http://stackoverflow.com/questions/492483/setting-the-correct-encoding-when-piping-stdout-in-python
+    try:
+        print >> buf, msg
+    except UnicodeEncodeError:
+        print >> buf, msg.encode("utf-8")
+
+
 def print_debug(msg):
     logger.debug(msg)
 
@@ -158,6 +166,42 @@ def set_rm_tmpdirs(enable):
     rm_tmdirs = enable
 
 
+def diff_content(content_a, content_b, name_a=None, name_b = None):
+    """Invoke the configured diff tool to show the diff between content."""
+    from rez.config import config
+
+    def _to_file(content, name=None):
+        prefix = name + '_' if name else "diff_"
+        f, filepath = tempfile.mkstemp("_rez", prefix)
+        os.write(f, content)
+        os.close(f)
+        return filepath
+
+    diff_tool = config.diff_tool
+    if diff_tool is None:
+        import webbrowser
+        from difflib import HtmlDiff
+
+        differ = HtmlDiff()
+        content = differ.make_file(content_a.split('\n'), content_b.split('\n'),
+                                   fromdesc=name_a, todesc=name_b)
+        filepath = _to_file(content)
+        url = "file://%s" % filepath
+        webbrowser.open_new(url)
+    else:
+        filepaths = []
+        for content, name in ((content_a, name_a), (content_b, name_b)):
+            filepath = _to_file(content, name)
+            filepaths.append(filepath)
+
+        from rez.vendor.sh.sh import Command, ErrorReturnCode
+        cmd = Command(diff_tool)
+        try:
+            cmd(*filepaths)
+        except ErrorReturnCode:
+            pass  # some diff tools return 1 if files differ
+
+
 def dedup(seq):
     """Remove duplicates from a list while keeping order."""
     seen = set()
@@ -165,6 +209,14 @@ def dedup(seq):
         if item not in seen:
             seen.add(item)
             yield item
+
+
+def split_path(s):
+    """Given a path-like string, remove duplicates and empty entries, and
+    return as a list of strings."""
+    paths = s.split(os.pathsep)
+    paths = (x for x in paths if x)
+    return list(dedup(paths))
 
 
 def shlex_join(value):
@@ -233,10 +285,22 @@ def get_close_pkgs(pkg, pkgs, fuzziness=0.4):
 
 
 def columnise(rows, padding=2):
+    """Print columnised output of given text.
+
+    There are two special rows that can be used:
+    - None: Prints a header underline;
+    - False: Prints a blank line.
+
+    Args:
+        rows (list of list of str): Columns and rows to print. Each row should
+            have the same column count.
+    """
     strs = []
     maxwidths = {}
 
     for row in rows:
+        if not row:
+            continue
         for i, e in enumerate(row):
             se = str(e)
             nse = len(se)
@@ -246,20 +310,48 @@ def columnise(rows, padding=2):
 
     for row in rows:
         s = ''
-        for i, e in enumerate(row):
-            se = str(e)
-            if i < len(row) - 1:
-                n = maxwidths[i] + padding - len(se)
-                se += ' ' * n
-            s += se
+        if row is None:
+            for i, maxwidth in sorted(maxwidths.iteritems()):
+                s += '-' * maxwidth
+                if i < len(maxwidths) - 1:
+                    s += ' ' * padding
+        elif row is False:
+            pass  # blank line
+        else:
+            for i, e in enumerate(row):
+                se = str(e)
+                if i < len(row) - 1:
+                    n = maxwidths[i] + padding - len(se)
+                    se += ' ' * n
+                else:
+                    n = maxwidths[i] - len(se)
+                    se += ' ' * n
+                s += se
         strs.append(s)
     return strs
 
 
-def print_colored_columns(printer, rows, padding=2):
-    """Note: The last entry in each row is the row color."""
-    rows_ = [x[:-1] for x in rows]
-    colors = [x[-1] for x in rows]
+def print_colored_columns(rows, printer=None, padding=2):
+    """Note: The last entry in each row is the row color.
+
+    Use [None, color] for heading underline rows. Just use False for blank rows.
+    """
+    from rez.colorize import Printer  # here to avoid circular import
+
+    rows_ = []
+    colors = []
+    for row in rows:
+        if row is False:
+            rows_.append(False)
+            colors.append(None)
+        elif row[0] is None:
+            rows_.append(None)
+            colors.append(row[-1])
+        else:
+            rows_.append(row[:-1])
+            colors.append(row[-1])
+
+    printer = printer or Printer()
     for col, line in zip(colors, columnise(rows_, padding=padding)):
         printer(line, col)
 
@@ -284,22 +376,22 @@ def pretty_env_dict(d):
     return '\n'.join(columnise(rows))
 
 
-def readable_time_duration(secs):
-    divs = ((365 * 24 * 3600, "years", 10),
-            (30 * 24 * 3600, "months", 12),
-            (7 * 24 * 3600, "weeks", 5),
-            (24 * 3600, "days", 7),
-            (3600, "hours", 8),
-            (60, "minutes", 5),
-            (1, "seconds", 60))
+def readable_time_duration(secs, short=False):
+    divs = ((365 * 24 * 3600, "years", 'Y', 10),
+            (30 * 24 * 3600, "months", 'M', 12),
+            (7 * 24 * 3600, "weeks", 'w', 5),
+            (24 * 3600, "days", 'd', 7),
+            (3600, "hours", 'h', 8),
+            (60, "minutes", 'm', 5),
+            (1, "seconds", 's', 60))
 
     if secs == 0:
-        return "0 seconds"
+        return "0s" if short else "0 seconds"
     neg = (secs < 0)
     if neg:
         secs = -secs
 
-    for seconds, unit, threshold in divs:
+    for seconds, unit, short_unit, threshold in divs:
         if secs >= seconds:
             f = secs / float(seconds)
             rounding = 0 if f > threshold else 1
@@ -307,7 +399,11 @@ def readable_time_duration(secs):
             f = int(f * 10) / 10.0
             if f == 1.0:
                 unit = unit[:-1]
-            txt = "%g %s" % (f, unit)
+
+            if short:
+                txt = "%g%s" % (f, short_unit)
+            else:
+                txt = "%g %s" % (f, unit)
             break
 
     if neg:
@@ -1009,11 +1105,9 @@ class AttrDictWrapper(MutableMapping):
             d = self.__dict__
         else:
             d = self._data
-        try:
-            return d[attr]
-        except KeyError:
-            raise AttributeError("'%s' object has no attribute '%s'"
-                                 % (self.__class__.__name__, attr))
+        if attr not in d:
+            self._data.__createitem__(attr)
+        return d[attr]
 
     def __setattr__(self, attr, value):
         # For things like '__class__', for instance
@@ -1323,11 +1417,14 @@ class ObjectStringFormatter(Formatter):
         self.expand = expand
 
     def convert_field(self, value, conversion):
+        def _str(x):
+            return x if isinstance(x, unicode) else str(x)
+
         if self.pretty:
             if value is None:
                 return ''
             elif isinstance(value, list):
-                return ' '.join(str(x) for x in value)
+                return ' '.join(map(_str, value))
         return Formatter.convert_field(self, value, conversion)
 
     def get_field(self, field_name, args, kwargs):
@@ -1336,15 +1433,17 @@ class ObjectStringFormatter(Formatter):
         try:
             return Formatter.get_field(self, field_name, args, kwargs)
         except (AttributeError, KeyError, TypeError):
-            reg = re.compile("[^\.\[]+")
-            try:
-                key = reg.match(field_name).group()
-            except:
-                key = field_name
-            if self.expand == 'empty':
-                return ('', key)
-            else:
-                return ("{%s}" % field_name, key)
+            pass
+
+        reg = re.compile("[^\.\[]+")
+        try:
+            key = reg.match(field_name).group()
+        except:
+            key = field_name
+        if self.expand == 'empty':
+            return ('', key)
+        else:
+            return ("{%s}" % field_name, key)
 
     def get_value(self, key, args, kwds):
         if isinstance(key, str):

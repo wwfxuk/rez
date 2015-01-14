@@ -161,6 +161,7 @@ config_schema = Schema({
     "local_styles":                     OptionalStrList,
     "implicit_styles":                  OptionalStrList,
     "alias_styles":                     OptionalStrList,
+    "soma_lock_styles":                 OptionalStrList,
     "local_packages_path":              Str,
     "release_packages_path":            Str,
     "dot_image_format":                 Str,
@@ -175,6 +176,7 @@ config_schema = Schema({
     "editor":                           OptionalStr,
     "image_viewer":                     OptionalStr,
     "browser":                          OptionalStr,
+    "diff_tool":                        OptionalStr,
     "critical_fore":                    OptionalStr,
     "critical_back":                    OptionalStr,
     "error_fore":                       OptionalStr,
@@ -193,6 +195,8 @@ config_schema = Schema({
     "implicit_back":                    OptionalStr,
     "alias_fore":                       OptionalStr,
     "alias_back":                       OptionalStr,
+    "soma_lock_fore":                   OptionalStr,
+    "soma_lock_back":                   OptionalStr,
     "resource_caching_maxsize":         Int,
     "resolve_max_depth":                Int,
     "resolve_start_depth":              Int,
@@ -499,6 +503,10 @@ class Config(DataWrapper):
     def _get_editor(self):
         from rez.platform_ import platform_
         return platform_.editor
+
+    def _get_diff_tool(self):
+        from rez.platform_ import platform_
+        return platform_.diff_tool
 
 
 class _PluginConfigs(object):

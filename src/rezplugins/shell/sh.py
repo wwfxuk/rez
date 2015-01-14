@@ -1,10 +1,14 @@
 """
 SH shell
 """
+import sys
+import select
 import os
 import os.path
+import pipes
 import subprocess
 from rez.config import config
+from rez import module_root_path
 from rez.shells import UnixShell
 
 
@@ -93,6 +97,9 @@ class SH(UnixShell):
             new_prompt = new_prompt % curr_prompt
             self._addline('export PS1="%s"' % new_prompt)
 
+        #completion = os.path.join(module_root_path, "completion", "complete.sh")
+        #self.source(completion)
+
     def setenv(self, key, value):
         self._addline('export %s=%s' % (key, value))
 
@@ -100,12 +107,20 @@ class SH(UnixShell):
         self._addline("unset %s" % key)
 
     def alias(self, key, value):
+        if hasattr(value, "__iter__"):
+            value = ' '.join(map(pipes.quote, value))
+        value += ' "$@"'
+
         cmd = "function {key}() {{ {value}; }};export -f {key};"
         self._addline(cmd.format(key=key, value=value))
 
     def source(self, value):
         value = os.path.expanduser(value)
         self._addline('. %s' % value)
+
+    def unalias(self, key):
+        cmd = "unset -f {key}"
+        self._addline(cmd.format(key=key))
 
     def _saferefenv(self, key):
         pass

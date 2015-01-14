@@ -1,15 +1,21 @@
 import os
 import subprocess
 import sys
-import pipes
+import posixpath
+import ntpath
+from string import Formatter, Template
 import re
 import UserDict
 import inspect
-from string import Formatter
+import textwrap
+import pipes
+import time
+import getpass
+from rez import module_root_path
 from rez.system import system
 from rez.config import config
 from rez.exceptions import RexError, RexUndefinedVariableError
-from rez.util import AttrDictWrapper, shlex_join, expandvars
+from rez.util import AttrDictWrapper, shlex_join, which, expandvars
 from rez.vendor.enum import Enum
 
 
@@ -21,6 +27,7 @@ class Action(object):
     _registry = []
 
     def __init__(self, *args):
+        self._variantBinding = None
         self.args = args
 
     def __repr__(self):
@@ -41,6 +48,14 @@ class Action(object):
     @classmethod
     def get_command_types(cls):
         return tuple(cls._registry)
+
+    @property
+    def variantBinding(self):
+        return self._variantBinding
+
+    @variantBinding.setter
+    def variantBinding(self, value):
+        self._variantBinding = value
 
 
 class EnvAction(Action):
@@ -109,6 +124,11 @@ class Alias(Action):
 Alias.register()
 
 
+class UnAlias(Action):
+    name = 'unalias'
+UnAlias.register()
+
+
 class Info(Action):
     name = 'info'
 Info.register()
@@ -156,7 +176,7 @@ class ActionManager(object):
     """
     def __init__(self, interpreter, output_style=OutputStyle.file,
                  parent_environ=None, parent_variables=None, formatter=None,
-                 verbose=False, env_sep_map=None):
+                 verbose=False, env_sep_map=None, exec_globals=None):
         '''
         interpreter: string or `ActionInterpreter`
             the interpreter to use when executing rex actions
@@ -177,6 +197,8 @@ class ActionManager(object):
             if True, causes commands to print additional feedback (using info()).
             can also be set to a list of strings matching command names to add
             verbosity to only those commands.
+        exec_globals: {}
+            To know globals in particular current variant binding
         '''
         self.interpreter = interpreter
         self.output_style = output_style
@@ -187,6 +209,7 @@ class ActionManager(object):
         self.environ = {}
         self.formatter = formatter or str
         self.actions = []
+        self.exec_globals = exec_globals
 
         self._env_sep_map = env_sep_map if env_sep_map is not None \
             else config.env_var_separators
@@ -219,6 +242,7 @@ class ActionManager(object):
             return bool(self.verbose)
 
     def _format(self, value):
+        """Format a string value."""
         # note that the default formatter is just str()
         def _fn(value_):
             return _escaped_string(value_).formatted(self.formatter)
@@ -257,7 +281,8 @@ class ActionManager(object):
     # -- Commands
 
     def undefined(self, key):
-        _, expanded_key = self._key(key)
+        unexpanded_key = self._format(key)
+        expanded_key = self._expand(unexpanded_key)
         return (expanded_key not in self.environ
                 and expanded_key not in self.parent_environ)
 
@@ -265,7 +290,8 @@ class ActionManager(object):
         return not self.undefined(key)
 
     def getenv(self, key):
-        _, expanded_key = self._key(key)
+        unexpanded_key = self._format(key)
+        expanded_key = self._expand(unexpanded_key)
         try:
             return self.environ[expanded_key] if expanded_key in self.environ \
                 else self.parent_environ[expanded_key]
@@ -278,7 +304,7 @@ class ActionManager(object):
         unexpanded_value, expanded_value = self._value(value)
 
         # TODO: check if value has already been set by another package
-        self.actions.append(Setenv(unexpanded_key, str(unexpanded_value)))
+        self.add_action(Setenv(unexpanded_key, str(unexpanded_value)))
         self.environ[expanded_key] = str(expanded_value)
 
         if self.interpreter.expand_env_vars:
@@ -289,7 +315,7 @@ class ActionManager(object):
 
     def unsetenv(self, key):
         unexpanded_key, expanded_key = self._key(key)
-        self.actions.append(Unsetenv(unexpanded_key))
+        self.add_action(Unsetenv(unexpanded_key))
 
         if expanded_key in self.environ:
             del self.environ[expanded_key]
@@ -303,8 +329,8 @@ class ActionManager(object):
         unexpanded_key, expanded_key = self._key(key)
         unexpanded_value, expanded_value = self._value(value)
 
-        action = Resetenv(unexpanded_key, str(unexpanded_value), friends)
-        self.actions.append(action)
+        self.add_action(Resetenv(unexpanded_key, unexpanded_value,
+                                     friends))
         self.environ[expanded_key] = str(expanded_value)
 
         if self.interpreter.expand_env_vars:
@@ -335,7 +361,7 @@ class ActionManager(object):
         # *pend or setenv depending on whether this is first reference to the var
         if expanded_key in self.environ:
             env_sep = self._env_sep(expanded_key)
-            self.actions.append(action(unexpanded_key, str(unexpanded_value)))
+            self.add_action(action(unexpanded_key, str(unexpanded_value)))
             parts = self.environ[expanded_key].split(env_sep)
 
             unexpanded_values = env_sep.join(
@@ -348,7 +374,7 @@ class ActionManager(object):
             self.environ[expanded_key] = \
                 env_sep.join(addfunc(str(expanded_value), parts))
         else:
-            self.actions.append(Setenv(unexpanded_key, str(unexpanded_value)))
+            self.add_action(Setenv(unexpanded_key, str(unexpanded_value)))
             self.environ[expanded_key] = str(expanded_value)
             unexpanded_values = self._expand(unexpanded_value)
             expanded_values = self._expand(expanded_value)
@@ -381,39 +407,49 @@ class ActionManager(object):
         self._pendenv(key, value, Appendenv, self.interpreter.appendenv,
                       lambda x, y: y + [x])
 
+    def add_action(self, action):
+        if 'this' in self.exec_globals:
+            action.variantBinding = self.exec_globals['this']
+        self.actions.append(action)
+
     def alias(self, key, value):
         key = str(self._format(key))
         value = str(self._format(value))
-        self.actions.append(Alias(key, value))
+        self.add_action(Alias(key, value))
         self.interpreter.alias(key, value)
+
+    def unalias(self, key):
+        key = str(self._format(key))
+        self.add_action(UnAlias(key))
+        self.interpreter.unalias(key)
 
     def info(self, value=''):
         value = self._format(value)
-        self.actions.append(Info(str(value)))
+        self.add_action(Info(str(value)))
         self.interpreter.info(self._escape(value))
 
     def error(self, value):
         value = self._format(value)
-        self.actions.append(Error(str(value)))
+        self.add_action(Error(str(value)))
         self.interpreter.error(self._escape(value))
 
     def command(self, value):
         # Note: Value is deliberately not formatted in commands
-        self.actions.append(Command(value))
+        self.add_action(Command(value))
         self.interpreter.command(value)
 
     def comment(self, value):
         value = str(self._format(value))
-        self.actions.append(Comment(value))
+        self.add_action(Comment(value))
         self.interpreter.comment(value)
 
     def source(self, value):
         value = str(self._format(value))
-        self.actions.append(Source(value))
+        self.add_action(Source(value))
         self.interpreter.source(value)
 
     def shebang(self):
-        self.actions.append(Shebang())
+        self.add_action(Shebang())
         self.interpreter.shebang()
 
 
@@ -470,6 +506,9 @@ class ActionInterpreter(object):
         raise NotImplementedError
 
     def alias(self, key, value):
+        raise NotImplementedError
+
+    def unalias(self, key):
         raise NotImplementedError
 
     def info(self, value):
@@ -613,6 +652,9 @@ class Python(ActionInterpreter):
         pass
 
     def alias(self, key, value):
+        pass
+
+    def unalias(self, key):
         pass
 
     def _bind_interactive_rez(self):
@@ -794,10 +836,15 @@ class EnvironmentDict(UserDict.DictMixin):
 
     def __getitem__(self, key):
         if key not in self._var_cache:
-            self._var_cache[key] = EnvironmentVariable(key, self)
+            raise KeyError(key)
         return self._var_cache[key]
 
+    def __createitem__(self, key):
+        self._var_cache[key] = EnvironmentVariable(key, self)
+    
     def __setitem__(self, key, value):
+        if key not in self._var_cache:
+            self.__createitem__(key)
         self[key].set(value)
 
     def __contains__(self, key):
@@ -914,7 +961,8 @@ class RexExecutor(object):
                                      formatter=self.expand,
                                      output_style=output_style,
                                      parent_environ=parent_environ,
-                                     parent_variables=parent_variables)
+                                     parent_variables=parent_variables,
+                                     exec_globals=self.globals)
 
         if isinstance(interpreter, Python):
             interpreter.set_manager(self.manager)

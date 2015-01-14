@@ -5,29 +5,34 @@ from rez.vendor.argparse import _SubParsersAction, ArgumentParser, SUPPRESS, \
     ArgumentError
 
 
-subcommands = [
-    "bind",
-    "build",
-    "config",
-    "context",
-    "complete",
-    "depends",
-    "env",
-    "forward",
-    "help",
-    "interpret",
-    "python",
-    "release",
-    "search",
-    "status",
-    "suite",
-    "selftest",
-    "gui"]
-
-
-hidden_subcommands = [
-    "complete",
-    "forward"]
+subcommands = dict(
+    rez=(["bind",
+          "build",
+          "config",
+          "context",
+          "complete",
+          "depends",
+          "env",
+          "forward",
+          "help",
+          "interpret",
+          "python",
+          "release",
+          "search",
+          "status",
+          "suite",
+          "selftest",
+          "gui"],
+         ["complete",
+          "forward"]),
+    soma=(["ls",
+           "env",
+           "view",
+           "log",
+           "diff",
+           "wrap",
+           "selftest"],
+          ["wrap"]))
 
 
 class LazySubParsersAction(_SubParsersAction):
@@ -89,6 +94,19 @@ class LazyArgumentParser(ArgumentParser):
                     for parser_name, parser in action._name_parser_map.iteritems():
                         action._setup_subparser(parser_name, parser)
         return super(LazyArgumentParser, self).format_help()
+
+
+def get_test_suites(opts, test_names, namespace="rez"):
+    from rez.backport.importlib import import_module
+
+    suites = []
+    test_all = all(not getattr(opts, test) for test in test_names)
+
+    for test in test_names:
+        if test_all or getattr(opts, test):
+            module = import_module('%s.tests.test_%s' % (namespace, test))
+            suites += getattr(module, 'get_test_suites')()
+    return suites
 
 
 _handled_int = False

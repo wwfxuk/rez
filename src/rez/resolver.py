@@ -26,7 +26,7 @@ class Resolver(object):
     def __init__(self, package_requests, package_paths, caching=True,
                  timestamp=0, callback=None, building=False, verbosity=False,
                  buf=None, package_load_callback=None, max_depth=0,
-                 start_depth=0):
+                 max_level=None, start_depth=0):
         """Create a Resolver.
 
         Args:
@@ -44,6 +44,8 @@ class Resolver(object):
                 that can be loaded for any given package name. This effectively
                 trims the search space - only the highest N package versions are
                 searched.
+            max_level (int): If not None, this value limits the number of levels
+                of requirements to load
             start_depth (int): If non-zero, an initial solve is performed with
                 `max_depth` set to this value. If this fails, the depth is doubled,
                 and another solve is performed. If `start_depth` is specified but
@@ -62,7 +64,7 @@ class Resolver(object):
         self.building = building
         self.verbosity = verbosity
         self.buf = buf
-
+        self.max_level = max_level
         self.max_depth = max_depth
         self.start_depth = start_depth
         if self.max_depth and self.start_depth:
@@ -95,7 +97,11 @@ class Resolver(object):
                       prune_unfailed=config.prune_failed_graph,
                       buf=self.buf)
 
-        if self.start_depth:
+        if self.max_level is not None:
+            # perform a solve that loads all relevant packages
+            solver = Solver(max_level=self.max_level, **kwargs)
+            solver.solve()
+        elif self.start_depth:
             # perform an iterative solve, doubling search depth until a solution
             # is found or all packages are exhausted
             depth = self.start_depth
