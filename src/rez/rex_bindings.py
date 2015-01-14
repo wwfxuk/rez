@@ -70,6 +70,9 @@ class VersionBinding(Binding):
     def patch(self):
         return self[2]
 
+    def as_tuple(self):
+        return self[:len(self)]
+
     def __attr_error(self, attr):
         raise AttributeError("version object has no attribute '%s'" % attr)
 

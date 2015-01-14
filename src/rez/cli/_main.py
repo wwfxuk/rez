@@ -2,6 +2,7 @@
 The main command-line entry point.
 """
 import sys
+from importlib import import_module
 from rez.vendor.argparse import _StoreTrueAction, SUPPRESS
 from rez.cli._util import subcommands, LazyArgumentParser, _env_var_true
 from rez import __version__

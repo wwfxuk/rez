@@ -15,7 +15,7 @@ from rez import module_root_path
 from rez.system import system
 from rez.config import config
 from rez.exceptions import RexError, RexUndefinedVariableError
-from rez.util import AttrDictWrapper, shlex_join, which, expandvars
+from rez.util import AttrDictWrapper, shlex_join, expandvars
 from rez.vendor.enum import Enum
 
 
@@ -281,8 +281,7 @@ class ActionManager(object):
     # -- Commands
 
     def undefined(self, key):
-        unexpanded_key = self._format(key)
-        expanded_key = self._expand(unexpanded_key)
+        _, expanded_key = self._key(key)
         return (expanded_key not in self.environ
                 and expanded_key not in self.parent_environ)
 
@@ -290,8 +289,7 @@ class ActionManager(object):
         return not self.undefined(key)
 
     def getenv(self, key):
-        unexpanded_key = self._format(key)
-        expanded_key = self._expand(unexpanded_key)
+        _, expanded_key = self._key(key)
         try:
             return self.environ[expanded_key] if expanded_key in self.environ \
                 else self.parent_environ[expanded_key]

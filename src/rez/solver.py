@@ -1650,7 +1650,7 @@ class Solver(_Common):
     def num_solves(self):
         """Return the number of solve steps that have been executed."""
         return self.solve_count
-   
+
     @property
     def num_fails(self):
         """Return the number of failed solve steps that have been executed.
@@ -1807,10 +1807,11 @@ class Solver(_Common):
                   the cycle) is used;
                 - If a callback has caused a failure, the most recent fail is used;
                 - Otherwise, the first fail is used.
+
         Returns:
             A `FailureReason` subclass instance describing the failure.
         """
-        phase = self._get_failed_phase(failure_index)
+        phase, _ = self._get_failed_phase(failure_index)
         return phase.failure_reason
 
     def failure_description(self, failure_index=None):
@@ -1822,19 +1823,17 @@ class Solver(_Common):
         """
         _, description = self._get_failed_phase(failure_index)
         return description
-    
+
     def failure_packages(self, failure_index=None):
         """Get packages involved in a failure.
 
         Args:
-            failure_index: Index of the fail to return the graph for (can be
-                negative). If None, the most appropriate failure is chosen -
-                this is the last fail if cyclic, or the first fail otherwise.
+            failure_index: See `failure_reason`.
 
         Returns:
             A list of Requirement objects.
         """
-        phase = self._get_failed_phase(failure_index)
+        phase, _ = self._get_failed_phase(failure_index)
         fr = phase.failure_reason
         return fr.involved_requirements() if fr else None
 
