@@ -412,7 +412,10 @@ class ActionManager(object):
 
     def alias(self, key, value):
         key = str(self._format(key))
-        value = str(self._format(value))
+        if isinstance(value, list):
+            value = [str(self._format(item)) for item in value]
+        else:
+            value = str(self._format(value))
         self.add_action(Alias(key, value))
         self.interpreter.alias(key, value)
 
@@ -839,7 +842,7 @@ class EnvironmentDict(UserDict.DictMixin):
 
     def __createitem__(self, key):
         self._var_cache[key] = EnvironmentVariable(key, self)
-    
+
     def __setitem__(self, key, value):
         if key not in self._var_cache:
             self.__createitem__(key)
