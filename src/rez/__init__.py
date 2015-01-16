@@ -1,7 +1,8 @@
 from rez._version import _rez_version
+import logging
 import logging.config
 import os
-
+import sys
 
 __version__ = _rez_version
 __author__ = "Allan Johns"
@@ -14,9 +15,13 @@ logging_conf_file = os.environ.get(
     os.path.join(module_root_path, 'logging.conf'))
 #logging.config.fileConfig(logging_conf_file, disable_existing_loggers=False)
 
+custom = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
+                           datefmt='%X')
+
 from rez.colorize import ColorizedStreamHandler
-consoleHandler = ColorizedStreamHandler()
-consoleHandler.name = 'console'
+console = ColorizedStreamHandler(sys.stderr)
+console.name = 'console'
+console.setFormatter(custom)
 
 logging.config.dictConfig(
 {
@@ -24,25 +29,6 @@ logging.config.dictConfig(
     'incremental': True,
     'disable_existing_loggers': False,
 
-    'formatters':
-    {
-        'custom':
-        {
-            'format': '%(asctime)s %(levelname)-8s %(message)s',
-            'datefmt': '%X',
-            'class': 'logging.Formatter',
-        },
-    },
-    'handlers':
-    {
-        'console':
-        {
-            'class': 'rez.colorize.ColorizedStreamHandler',
-            #'class': 'ColorStreamHandler.ColorStreamHandler',
-            'formatter': 'custom',
-            'stream': 'ext://sys.stdout',
-        },
-    },
     'loggers':
     {
         'root':
@@ -52,7 +38,7 @@ logging.config.dictConfig(
         'rez':
         {
             'level': 'DEBUG',
-            'handlers': ['console'],
+            'handlers': console,
             'qualname': 'rez',
             'propagate': False,
         }
