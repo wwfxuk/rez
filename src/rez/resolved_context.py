@@ -122,7 +122,8 @@ class ResolvedContext(object):
                  add_implicit_packages=True, max_fails=-1, time_limit=-1,
                  callback=None, package_load_callback=None, max_depth=None,
                  start_depth=None, max_level=None, buf=None,
-                 callbacks=["pre_commands", "commands", "post_commands"]):
+                 callbacks=["pre_commands", "commands", "post_commands"],
+                 branch=None):
         """Perform a package resolve, and store the result.
 
         Args:
@@ -164,6 +165,7 @@ class ResolvedContext(object):
             buf (file-like object): Where to print verbose output to, defaults
                 to stdout.
             callbacks (list): Functions in package.py to execute
+            branch (str): Override version if it exists on disks
         """
         self.load_path = None
 
@@ -179,6 +181,7 @@ class ResolvedContext(object):
                             else start_depth)
         self.max_level = max_level
         self.callbacks = callbacks
+        self.branch = branch
 
         self._package_requests = []
         for req in package_requests:
@@ -240,7 +243,8 @@ class ResolvedContext(object):
                             max_depth=self.max_depth,
                             start_depth=self.start_depth,
                             max_level=self.max_level,
-                            buf=buf)
+                            buf=buf,
+                            branch=self.branch,)
         resolver.solve()
 
         # convert the results

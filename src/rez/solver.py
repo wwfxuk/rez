@@ -722,7 +722,7 @@ class PackageVariantCache(object):
         self.package_load_callback = package_load_callback
         self.variant_lists = {}  # {package-name: _PackageVariantList}
 
-    def get_variant_slice(self, package_name, range, max_packages=0):
+    def get_variant_slice(self, package_name, range, max_packages=0, override=None):
         """Get a list of variants from the cache.
 
         Args:
@@ -731,6 +731,7 @@ class PackageVariantCache(object):
             max_packages (int): Load only the first N packages found, ignored
                 if zero. The return object's `is_partial` method indicates
                 whether more packages could have been loaded.
+            override (str): If not None and in existing version range, returned version
 
         Returns:
             Two-tuple containing:
@@ -748,6 +749,16 @@ class PackageVariantCache(object):
                 timestamp=self.timestamp,
                 building=self.building,
                 package_load_callback=self.package_load_callback)
+
+        if override:
+            for variant in variant_list.entries[:]:
+                if str(variant[0]) == override:
+                    variant_list.entries = [variant]
+                    if range: # Not here
+                       # Overwrite range
+                       range = VersionRange(override)
+                    break
+
             self.variant_lists[package_name] = variant_list
 
         variants, is_partial = variant_list.get_intersection(range, max_packages)
@@ -773,12 +784,17 @@ class _PackageScope(_Common):
             self.package_request = package_request
         else:
             self.variant_slice = solver._get_variant_slice(
-                package_request.name, package_request.range)
+                package_request.name, package_request.range, override=solver.branch)
             if self.variant_slice is None:
                 req = Requirement.construct(package_request.name,
                                             package_request.range)
                 raise PackageNotFoundError("Package could not be found: %s"
                                            % str(req))
+            if solver.branch:
+                if (len(self.variant_slice.variants) == 1
+                    and self.variant_slice.variants[0].version not in package_request.range):
+                    # Overwrite range
+                    package_request.range_ = VersionRange(str(self.variant_slice.variants[0].version))
             self._update()
 
     @property
@@ -1527,7 +1543,7 @@ class Solver(_Common):
     def __init__(self, package_requests, package_paths, timestamp=0,
                  callback=None, building=False, optimised=True, verbosity=0,
                  buf=None, package_load_callback=None, max_depth=0, max_level=None,
-                 package_cache=None, prune_unfailed=True):
+                 package_cache=None, prune_unfailed=True, branch=None):
         """Create a Solver.
 
         Args:
@@ -1560,6 +1576,7 @@ class Solver(_Common):
             prune_unfailed (bool): If the solve failed, and `prune_unfailed` is
                 True, any packages unrelated to the conflict are removed from
                 the graph.
+            branch (str): Override version if it exists on disks
         """
         self.package_requests = package_requests
         self.package_paths = package_paths
@@ -1572,6 +1589,7 @@ class Solver(_Common):
         self.level = self.max_level
         self.prune_unfailed = prune_unfailed
         self.request_list = None
+        self.branch = branch
 
         self.phase_stack = None
         self.failed_phase_list = None
@@ -1929,12 +1947,13 @@ class Solver(_Common):
 
         return keep_going
 
-    def _get_variant_slice(self, package_name, range):
+    def _get_variant_slice(self, package_name, range, override=None):
         start_time = time.time()
         slice, is_partial = self.package_cache.get_variant_slice(
             package_name=package_name,
             range=range,
-            max_packages=self.max_depth)
+            max_packages=self.max_depth,
+            override=override)
 
         if slice is not None:
             slice.pr = self.pr

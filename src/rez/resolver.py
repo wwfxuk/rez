@@ -26,7 +26,7 @@ class Resolver(object):
     def __init__(self, package_requests, package_paths, caching=True,
                  timestamp=0, callback=None, building=False, verbosity=False,
                  buf=None, package_load_callback=None, max_depth=0,
-                 max_level=None, start_depth=0):
+                 max_level=None, start_depth=0, branch=None):
         """Create a Resolver.
 
         Args:
@@ -54,6 +54,7 @@ class Resolver(object):
                 perform something like a breadth-first search - we put off
                 loading older packages with the assumption that they aren't being
                 used anymore.
+            branch (str): Override version if it exists on disks
         """
         self.package_requests = package_requests
         self.package_paths = package_paths
@@ -69,6 +70,7 @@ class Resolver(object):
         self.start_depth = start_depth
         if self.max_depth and self.start_depth:
             assert self.max_depth >= self.start_depth
+        self.branch = branch
 
         self.status_ = ResolverStatus.pending
         self.resolved_packages_ = None
@@ -95,10 +97,12 @@ class Resolver(object):
                       building=self.building,
                       verbosity=self.verbosity,
                       prune_unfailed=config.prune_failed_graph,
-                      buf=self.buf)
+                      buf=self.buf,
+                      branch=self.branch)
 
         if self.max_level is not None:
-            # perform a solve that loads all relevant packages
+            # perform a solve that loads all relevant packages,
+            # but override all verisons with brnach if possible
             solver = Solver(max_level=self.max_level, **kwargs)
             solver.solve()
         elif self.start_depth:
