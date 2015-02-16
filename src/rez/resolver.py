@@ -1,6 +1,7 @@
 from rez.solver import Solver, SolverStatus, PackageVariantCache
 from rez.config import config
 from rez.vendor.enum import Enum
+from rez.packages import Variant
 
 
 class ResolverStatus(Enum):
@@ -180,7 +181,21 @@ class Resolver(object):
             self.status_ = ResolverStatus.solved
             pkgs = solver.resolved_packages
 
+        # Test variant existence
+        if self.branch:
+            import os
+            for variant in pkgs:
+                resource_handle = variant.userdata
+                resource = resource_handle.get_resource()
+                pkg = Variant(resource)
+                if not os.path.isdir(pkg.root):
+                    self.status_ = ResolverStatus.failed
+                    self.failure_description = "Variant %s doesn't exist on disk" % pkg.root
+
         self.resolved_packages_ = pkgs
+
         self.graph_ = solver.get_graph()
         self.solve_time = solver.solve_time
         self.load_time = solver.load_time
+
+

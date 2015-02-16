@@ -121,7 +121,7 @@ from rez.vendor.pygraph.algorithms.cycles import find_cycle
 from rez.vendor.pygraph.algorithms.accessibility import accessibility
 from rez.exceptions import PackageNotFoundError, ResolveError, \
     PackageFamilyNotFoundError
-from rez.vendor.version.version import VersionRange
+from rez.vendor.version.version import VersionRange, Version
 from rez.vendor.version.requirement import VersionedObject, Requirement, \
     RequirementList
 from rez.vendor.enum import Enum
@@ -545,9 +545,12 @@ class _PackageVariantSlice(_Common):
         else:
             return self
 
-    def reduce_by(self, package_request):
+    def reduce_by(self, package_request, override=None):
         """Remove variants whos dependencies conflict with the given package
         request.
+
+        override (str): If not None, and equal to package_request verison,
+                        override required package version
 
         Returns:
             (VariantSlice, [Reduction]) tuple, where slice may be None if all
@@ -566,6 +569,10 @@ class _PackageVariantSlice(_Common):
         fn = lambda x: x.get(package_request.name)
 
         for req, variants_ in groupby(self.variants, fn):
+            if override:
+                overVersion = Version(override)
+                if overVersion in package_request.range:
+                    req.range_ = VersionRange(override)
             if req and req.conflicts_with(package_request):
                 for variant in variants_:
                     red = Reduction(name=variant.name,
@@ -763,10 +770,10 @@ class PackageVariantCache(object):
 
         variants, is_partial = variant_list.get_intersection(range, max_packages)
         if not variants:
-            return None, False
+            return None, False, range
 
         slice_ = _PackageVariantSlice(package_name, variants=variants)
-        return slice_, is_partial
+        return slice_, is_partial, range
 
 
 class _PackageScope(_Common):
@@ -846,7 +853,7 @@ class _PackageScope(_Common):
             reductions, or None if the slice was completely reduced.
         """
         if not self.package_request.conflict:
-            new_slice, reductions = self.variant_slice.reduce_by(package_request)
+            new_slice, reductions = self.variant_slice.reduce_by(package_request, override=self.solver.branch)
 
             if new_slice is None:
                 if self.pr:
@@ -1949,7 +1956,7 @@ class Solver(_Common):
 
     def _get_variant_slice(self, package_name, range, override=None):
         start_time = time.time()
-        slice, is_partial = self.package_cache.get_variant_slice(
+        slice, is_partial, range = self.package_cache.get_variant_slice(
             package_name=package_name,
             range=range,
             max_packages=self.max_depth,
