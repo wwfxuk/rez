@@ -569,7 +569,7 @@ class _PackageVariantSlice(_Common):
         fn = lambda x: x.get(package_request.name)
 
         for req, variants_ in groupby(self.variants, fn):
-            if override:
+            if req and override:
                 overVersion = Version(override)
                 if overVersion in package_request.range:
                     req.range_ = VersionRange(override)
