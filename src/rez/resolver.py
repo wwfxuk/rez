@@ -182,7 +182,7 @@ class Resolver(object):
             pkgs = solver.resolved_packages
 
         # Test variant existence
-        if self.branch:
+        if self.branch and pkgs:
             import os
             for variant in pkgs:
                 resource_handle = variant.userdata
