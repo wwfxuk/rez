@@ -374,7 +374,7 @@ error_package_name_mismatch: false
 # Warn or disallow when a package contains a version number that does not match
 # the version specified in the directory structure. When this occurs, the
 # directory version number is used in preference.
-warn_version_mismatch: true
+warn_version_mismatch: false # MIK
 error_version_mismatch: false
 
 # Warn or disallow when a package is found to contain a non-string version. This
