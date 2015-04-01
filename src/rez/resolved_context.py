@@ -1119,6 +1119,10 @@ class ResolvedContext(object):
             If blocking: A 3-tuple of (returncode, stdout, stderr);
             If non-blocking - A subprocess.Popen object for the shell process.
         """
+        if parent_environ is None:
+            # Remove blacklisted env var from parent environment
+            parent_environ = {k: v for (k, v) in os.environ.iteritems() if k not in config.blacklisted_parent_variables}
+
         if hasattr(command, "__iter__"):
             command = shlex_join(command)
 
