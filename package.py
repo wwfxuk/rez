@@ -1,5 +1,5 @@
 name = 'rez'
-version = 'mikros2.4.2'
+version = 'mikros2.5.0'
 
 requires = ['python-2.7'] # for logging
 
