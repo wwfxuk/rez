@@ -33,7 +33,6 @@ class Bash(SH):
         if stdin:
             cls._overruled_option('rcfile', 'stdin', rcfile)
             rcfile = False
-            #rcFile = False
         return (rcfile, norc, stdin, command)
 
     @classmethod
@@ -60,10 +59,10 @@ class Bash(SH):
                 files.append(rcfile)
         else:
             for file in (
-                    "~/.bash_profile",
-                    "~/.bash_login",
-                    "~/.profile",
-                    "~/.bashrc"):
+                    os.path.realpath(os.path.abspath("{0}/.bash_profile".format(os.environ['HOME']))),
+                    os.path.realpath(os.path.abspath("{0}/.bash_login".format(os.environ['HOME']))),
+                    os.path.realpath(os.path.abspath("{0}/.profile".format(os.environ['HOME']))),
+                    os.path.realpath(os.path.abspath("{0}/.bashrc".format(os.environ['HOME'])))):
                 if os.path.exists(os.path.expanduser(file)):
                     files.append(file)
 
@@ -74,8 +73,8 @@ class Bash(SH):
             envvar=envvar,
             files=files,
             bind_files=(
-                "~/.bash_profile",
-                "~/.bashrc"),
+                os.path.realpath(os.path.abspath("{0}/.bash_profile".format(os.environ['HOME']))),
+                os.path.realpath(os.path.abspath("{0}/.bashrc".format(os.environ['HOME'])))),
             source_bind_files=True
         )
 
