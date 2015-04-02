@@ -59,10 +59,10 @@ class Bash(SH):
                 files.append(rcfile)
         else:
             for file in (
-                    os.path.realpath(os.path.abspath("{0}/.bash_profile".format(os.environ['HOME']))),
-                    os.path.realpath(os.path.abspath("{0}/.bash_login".format(os.environ['HOME']))),
-                    os.path.realpath(os.path.abspath("{0}/.profile".format(os.environ['HOME']))),
-                    os.path.realpath(os.path.abspath("{0}/.bashrc".format(os.environ['HOME'])))):
+                    "~/.bash_profile",
+                    "~/.bash_login",
+                    "~/.profile",
+                    "~/.bashrc"):
                 if os.path.exists(os.path.expanduser(file)):
                     files.append(file)
 
@@ -73,10 +73,14 @@ class Bash(SH):
             envvar=envvar,
             files=files,
             bind_files=(
-                os.path.realpath(os.path.abspath("{0}/.bash_profile".format(os.environ['HOME']))),
-                os.path.realpath(os.path.abspath("{0}/.bashrc".format(os.environ['HOME'])))),
+                "~/.bash_profile",
+                "~/.bashrc"),
             source_bind_files=True
         )
+    """
+    os.path.realpath(os.path.abspath("{0}/.bash_profile".format(os.environ['HOME']))),
+    os.path.realpath(os.path.abspath("{0}/.bashrc".format(os.environ['HOME'])))),
+    """
 
     def _bind_interactive_rez(self):
         super(Bash, self)._bind_interactive_rez()

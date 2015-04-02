@@ -256,7 +256,8 @@ class UnixShell(Shell):
                 executor.setenv(envvar, filepath)
             else:
                 # hijack $HOME to insert our own script
-                files = [x for x in files if x not in bind_files] + list(bind_files)
+                files = [x for x in files if os.path.realpath(os.path.abspath(x))
+                         not in [os.path.realpath(os.path.abspath(b)) for b in bind_files]] + list(bind_files)
                 if files:
                     for file in files:
                         if file in bind_files:
