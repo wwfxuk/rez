@@ -409,7 +409,7 @@ class PackageVariant(_Common):
 class _PackageVariantList(_Common):
     """A sorted list of package variants, loaded lazily."""
     def __init__(self, package_name, package_paths=None, timestamp=0,
-                 building=False, package_load_callback=None):
+                 building=False, package_load_callback=None, override=None):
         self.package_name = package_name
         self.package_paths = package_paths
         self.timestamp = timestamp
@@ -417,7 +417,7 @@ class _PackageVariantList(_Common):
         self.package_load_callback = package_load_callback
         self.variants = []
 
-        it = iter_packages(self.package_name, paths=self.package_paths)
+        it = iter_packages(self.package_name, paths=self.package_paths, override=override)
         entries = ([x.version, x] for x in it)
         self.entries = sorted(entries, key=lambda x: x[0], reverse=True)
         if not self.entries:
@@ -755,7 +755,15 @@ class PackageVariantCache(object):
                 package_paths=self.package_paths,
                 timestamp=self.timestamp,
                 building=self.building,
-                package_load_callback=self.package_load_callback)
+                package_load_callback=self.package_load_callback,
+                override=override)
+
+        # if override:
+        # if 'version' in doc:
+        #     if (not '|{0}|'.format(override) in doc['version']
+        #         and not doc['version'].startswith('{0}|'.format(override))
+        #         and not doc['version'].endswith('|{0}'.format(override))):
+        #         doc['version'] = '|'.join(doc['version'], override)
 
         if override:
             for variant in variant_list.entries[:]:

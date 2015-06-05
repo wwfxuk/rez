@@ -38,7 +38,7 @@ def iter_package_families(paths=None):
         yield PackageFamily(resource)
 
 
-def _iter_packages(name=None, paths=None):
+def _iter_packages(name=None, paths=None, override=None):
     variables = {}
     if name is not None:
         variables["name"] = name
@@ -46,11 +46,12 @@ def _iter_packages(name=None, paths=None):
             resource_keys='package.*',
             search_path=paths,
             root_resource_key="folder.packages_root",
-            variables=variables):
+            variables=variables,
+            override=override):
         yield Package(resource)
 
 
-def iter_packages(name=None, range=None, paths=None):
+def iter_packages(name=None, range=None, paths=None, override=None):
     """Iterate over `Package` instances, in no particular order.
 
     Packages of the same name and version earlier in the search path take
@@ -68,7 +69,7 @@ def iter_packages(name=None, range=None, paths=None):
         `Package` object iterator.
     """
     consumed = set()
-    for pkg in _iter_packages(name, paths):
+    for pkg in _iter_packages(name, paths, override=override):
         handle = (pkg.name, pkg.version)
         if handle not in consumed:
             if range and pkg.version not in range:

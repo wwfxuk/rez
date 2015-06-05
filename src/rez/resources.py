@@ -196,7 +196,7 @@ def get_file_loader(filepath):
         raise ResourceError("Unknown metadata storage scheme: %r" % scheme)
 
 
-def load_file(filepath, loader=None):
+def load_file(filepath, loader=None, override=None):
     """Read metadata from a file.
 
     Determines the proper de-serialization scheme based on file extension.
@@ -220,6 +220,13 @@ def load_file(filepath, loader=None):
             doc = loader(f, filepath)
     finally:
         timings.end("resources.load_file")
+
+    if override:
+        if 'version' in doc:
+            if (not '|{0}|'.format(override) in doc['version']
+                and not doc['version'].startswith('{0}|'.format(override))
+                and not doc['version'].endswith('|{0}'.format(override))):
+                doc['version'] = '|'.join(doc['version'], override)
 
     if config.debug("resources"):
         print_debug("loaded resource file: %s" % filepath)
@@ -450,16 +457,18 @@ class Resource(object):
 
     _children = defaultdict(set)  # gets filled by register_resource
 
-    def __init__(self, path, variables=None):
+    def __init__(self, path, variables=None, override=None):
         """
         Args:
             path (str): path of the file to be loaded.
             variables (dict): variables that define this resource. For example,
                 a package has a name and a version. Some of these variables may
                 have been used to construct `path`.
+            override (str): Version override
         """
         self.variables = variables or {}
         self.path = path
+        self.override=override
 
     def get(self, key, default=None):
         """Get the value of a resource variable."""
@@ -733,7 +742,7 @@ class FileResource(FileSystemResource):
         """
         if os.path.isfile(self.path):
             try:
-                data = load_file(self.path, self.loader)
+                data = load_file(self.path, self.loader, override=self.override)
                 if self.schema:
                     k = "resources.validate.%s" % self.__class__.__name__
                     timings.start(k)
@@ -943,7 +952,7 @@ def _iter_filtered_resources(parent_resource, resource_classes, variables):
 
 
 def iter_resources(resource_keys=None, search_path=None, variables=None,
-                   root_resource_key=None):
+                   root_resource_key=None, override=None):
     """Iterate over `Resource` instances.
 
     Must provide `resource_keys` or `root_resource_key`.
@@ -974,7 +983,7 @@ def iter_resources(resource_keys=None, search_path=None, variables=None,
         search_path = [search_path]
 
     for path in search_path:
-        resource = root_cls(path, {'search_path': path})
+        resource = root_cls(path, {'search_path': path}, override=override)
         for child in _iter_filtered_resources(resource, resource_classes,
                                               variables):
             yield child
