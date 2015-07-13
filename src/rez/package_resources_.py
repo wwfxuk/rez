@@ -369,7 +369,7 @@ class VariantResourceHelper(VariantResource):
                     "parent package %s" % (self.uri, self.parent.uri))
 
             dirs = [x.safe_str() for x in reqs]
-            subpath = os.path.join(*dirs)
+            subpath = os.path.join(*dirs) if dirs else ''
             return subpath
 
     def _root(self):
@@ -378,7 +378,7 @@ class VariantResourceHelper(VariantResource):
         elif self.index is None:
             return self.base
         else:
-            root = os.path.join(self.base, self.subpath)
+            root = os.path.join(self.base, self.subpath) if self.subpath else self.base
             return root
 
     @cached_property
