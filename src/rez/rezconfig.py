@@ -379,7 +379,8 @@ dot_image_format = "png"
 # probably want to use the environment variable $REZ_ENV_PROMPT, which contains
 # the set of characters that are normally prefixed/suffixed to the prompt, ie
 # '>', '>>' etc.
-set_prompt = True
+# set_prompt = True
+set_prompt = False
 
 # If true, prefixes the prompt, suffixes if false. Ignored if 'set_prompt' is
 # false.
