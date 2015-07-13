@@ -74,6 +74,7 @@ package_base_schema_dict.update({
     Optional('pre_commands'):           SourceCode,
     Optional('commands'):               SourceCode,
     Optional('post_commands'):          SourceCode,
+    Optional('post_install'):           SourceCode,
 
     # release info
     Optional("timestamp"):              int,
@@ -291,6 +292,10 @@ class PackageResourceHelper(PackageResource):
     @cached_property
     def post_commands(self):
         return self._convert_to_rex(self._post_commands)
+
+    @cached_property
+    def post_install(self):
+        return self._convert_to_rex(self._post_install)
 
     def iter_variants(self):
         num_variants = len(self._data.get("variants", []))
