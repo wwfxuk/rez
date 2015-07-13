@@ -3,15 +3,14 @@ import os
 import os.path
 from fnmatch import fnmatch
 from rez import __version__
-from rez.util import propertycache
+from rez.utils.data_utils import cached_property
 from rez.resolved_context import ResolvedContext
-from rez.packages import iter_packages, Package
+from rez.packages_ import iter_packages, Package
 from rez.suite import Suite
 from rez.wrapper import Wrapper
-from rez.colorize import local, warning, critical, Printer
-from rez.util import print_colored_columns
+from rez.utils.colorize import local, warning, critical, Printer
+from rez.utils.formatting import print_colored_columns, PackageRequest
 from rez.backport.shutilwhich import which
-from rez.vendor.version.requirement import Requirement
 
 
 class Status(object):
@@ -23,7 +22,7 @@ class Status(object):
     def __init__(self):
         pass
 
-    @propertycache
+    @cached_property
     def context_file(self):
         """Get path to the current context file.
 
@@ -32,7 +31,7 @@ class Status(object):
         """
         return os.getenv("REZ_RXT_FILE")
 
-    @propertycache
+    @cached_property
     def context(self):
         """Get the current context.
 
@@ -42,7 +41,7 @@ class Status(object):
         path = self.context_file
         return ResolvedContext.load(path) if path else None
 
-    @propertycache
+    @cached_property
     def suites(self):
         """Get currently visible suites.
 
@@ -53,7 +52,7 @@ class Status(object):
         """
         return Suite.load_visible_suites()
 
-    @propertycache
+    @cached_property
     def parent_suite(self):
         """Get the current parent suite.
 
@@ -69,8 +68,8 @@ class Status(object):
             return Suite.load(self.context.parent_suite_path)
         return None
 
-    # TODO store this info in env-var instead, remove suite info from context.
-    @propertycache
+    # TODO: store this info in env-var instead, remove suite info from context.
+    @cached_property
     def active_suite_context_name(self):
         """Get the name of the currently active context in a parent suite.
 
@@ -190,7 +189,7 @@ class Status(object):
         headers = [["TOOL", "ALIASING", "PACKAGE", "SOURCE", "", None],
                    ["----", "--------", "-------", "------", "", None]]
         rows = headers + sorted(rows, key=lambda x: x[0].lower())
-        print_colored_columns(rows, _pr)
+        print_colored_columns(_pr, rows)
         return True
 
     def _print_tool_info(self, value, buf=sys.stdout, b=False):
@@ -272,13 +271,13 @@ class Status(object):
             else:
                 name = package.qualified_package_name  # Variant
             _pr("Package:  %s" % name)
+            path_str = "URI:      %s" % package.uri
             if package.is_local:
-                _pr("Path:     %s  (local)" % package.path, local)
-            else:
-                _pr("Path:     %s" % package.search_path)
+                path_str += "  (local)"
+            _pr(path_str)
 
         try:
-            req = Requirement(request_str)
+            req = PackageRequest(request_str)
         except:
             return False
         if req.conflict:

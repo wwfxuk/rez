@@ -1,19 +1,22 @@
 """
 Bash shell
 """
-import sys
-import select
 import os
 import os.path
-from rez.shells import UnixShell
+from rez.shells import Shell
+from rez.utils.platform_ import platform_
+from rez.utils.data_utils import cached_class_property
 from rezplugins.shell.sh import SH
 from rez import module_root_path
 
 
 class Bash(SH):
-    executable = UnixShell.find_executable('bash')
     rcfile_arg = '--rcfile'
     norc_arg = '--norc'
+
+    @cached_class_property
+    def executable(cls):
+        return Shell.find_executable('bash')
 
     @classmethod
     def name(cls):
@@ -29,7 +32,7 @@ class Bash(SH):
             cls._overruled_option('stdin', 'command', stdin)
             cls._overruled_option('rcfile', 'command', rcfile)
             stdin = False
-            #rcfile = False
+            rcfile = False
         if stdin:
             cls._overruled_option('rcfile', 'stdin', rcfile)
             rcfile = False
@@ -46,10 +49,6 @@ class Bash(SH):
 
         if (command is not None) or stdin:
             envvar = 'BASH_ENV'
-            if rcfile or norc:
-                do_rcfile = True
-                if rcfile and os.path.exists(os.path.expanduser(rcfile)):
-                    files.append(rcfile)
             path = os.getenv(envvar)
             if path and os.path.isfile(os.path.expanduser(path)):
                 files.append(path)
@@ -77,10 +76,6 @@ class Bash(SH):
                 "~/.bashrc"),
             source_bind_files=True
         )
-    """
-    os.path.realpath(os.path.abspath("{0}/.bash_profile".format(os.environ['HOME']))),
-    os.path.realpath(os.path.abspath("{0}/.bashrc".format(os.environ['HOME'])))),
-    """
 
     def _bind_interactive_rez(self):
         super(Bash, self)._bind_interactive_rez()
@@ -89,4 +84,5 @@ class Bash(SH):
 
 
 def register_plugin():
-    return Bash
+    if platform_.name != "windows":
+        return Bash

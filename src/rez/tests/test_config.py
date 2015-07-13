@@ -1,11 +1,13 @@
+"""
+test configuration settings
+"""
 import rez.vendor.unittest2 as unittest
 from rez.tests.util import TestBase
 from rez.exceptions import ConfigurationError
-from rez.config import Config
+from rez.config import Config, get_module_root_config
 from rez.system import system
-from rez import module_root_path
-from rez.util import RO_AttrDictWrapper
-from rez.packages import load_developer_package
+from rez.utils.data_utils import RO_AttrDictWrapper
+from rez.packages_ import get_developer_package
 import os
 import os.path
 
@@ -14,7 +16,7 @@ class TestConfig(TestBase):
     @classmethod
     def setUpClass(cls):
         cls.settings = {}
-        cls.root_config_file = os.path.join(module_root_path, "rezconfig")
+        cls.root_config_file = get_module_root_config()
         path = os.path.dirname(__file__)
         cls.config_path = os.path.join(path, "data", "config")
 
@@ -46,6 +48,15 @@ class TestConfig(TestBase):
         c.override("build_directory", "flabber")
         self.assertEqual(c.build_directory, "flabber")
 
+        # remove override
+        value = c.tmpdir or ''
+        new_value = value + '_'
+        c.override("tmpdir", new_value)
+        self.assertEqual(c.tmpdir, new_value)
+        c.remove_override("tmpdir")
+        value_ = c.tmpdir or ''
+        self.assertEqual(value_, value)
+
         self._test_basic(c)
 
     def test_1(self):
@@ -63,7 +74,7 @@ class TestConfig(TestBase):
 
         # check user path expansion
         self.assertEqual(c.local_packages_path,
-                         os.path.expanduser("~/packages"))
+                         os.path.expanduser(os.path.join("~", "packages")))
 
         # check access to plugins settings common to a plugin type
         self.assertEqual(c.plugins.release_vcs.tag_name, '{qualified_name}')
@@ -105,9 +116,15 @@ class TestConfig(TestBase):
         self._test_basic(c)
 
         # test env-var override that contains a system expansion
+        REZ_TMPDIR_ = os.environ.get("REZ_TMPDIR")
         os.environ["REZ_TMPDIR"] = "/tmp/{system.user}"
         expected_value = "/tmp/%s" % system.user
         self.assertEqual(c.tmpdir, expected_value)
+        if REZ_TMPDIR_:
+            os.environ["REZ_TMPDIR"] = REZ_TMPDIR_
+        else:
+            del os.environ["REZ_TMPDIR"]
+        c._uncache("tmpdir")
 
         # _test_overrides overrides this value, so here we're making sure
         # that an API override takes precedence over an env-var override
@@ -116,7 +133,7 @@ class TestConfig(TestBase):
 
     def test_4(self):
         """Test package config overrides."""
-        pkg = load_developer_package(self.config_path)
+        pkg = get_developer_package(self.config_path)
         c = pkg.config
         self._test_basic(c)
 
@@ -162,18 +179,6 @@ class TestConfig(TestBase):
 
         with self.assertRaises(ConfigurationError):
             _ = c.debug_all
-
-
-def get_test_suites():
-    suites = []
-    suite = unittest.TestSuite()
-    suite.addTest(TestConfig("test_1"))
-    suite.addTest(TestConfig("test_2"))
-    suite.addTest(TestConfig("test_3"))
-    suite.addTest(TestConfig("test_4"))
-    suite.addTest(TestConfig("test_5"))
-    suites.append(suite)
-    return suites
 
 
 if __name__ == '__main__':

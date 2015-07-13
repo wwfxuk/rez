@@ -14,7 +14,7 @@ class Binding(object):
         self.__data = data or {}
 
     def __attr_error(self, attr):
-        raise NotImplemented
+        raise NotImplementedError
 
     def __getattr__(self, attr):
         try:
@@ -47,16 +47,6 @@ class VersionBinding(Binding):
     def __init__(self, version):
         super(VersionBinding, self).__init__()
         self.__version = version
-
-    @property
-    def raw(self):
-        """Raw string version."""
-        return str(self.__version)
-
-    @property
-    def full(self):
-        """Full version as a tuple (major, minor, patch)."""
-        return (str(self.major), str(self.minor), str(self.patch))
 
     @property
     def major(self):
@@ -101,6 +91,11 @@ class VersionBinding(Binding):
 
     def __str__(self):
         return str(self.__version)
+
+    def __iter__(self):
+        # without this, the binding will iterate infinitely, returning more
+        # None objects...
+        return iter(self.__version)
 
 
 class VariantBinding(Binding):

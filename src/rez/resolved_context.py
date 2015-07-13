@@ -1,27 +1,31 @@
 from rez import __version__, module_root_path
+from rez.package_repository import package_repository_manager
 from rez.solver import SolverCallbackReturn
 from rez.resolver import Resolver, ResolverStatus
 from rez.system import system
 from rez.config import config
-from rez.colorize import critical, heading, local, implicit, Printer
-from rez.resources import ResourceHandle
-from rez.util import columnise, shlex_join, mkdtemp_, dedup, timings
+from rez.util import shlex_join, dedup
+from rez.utils.colorize import critical, heading, local, implicit, Printer
+from rez.utils.formatting import columnise, PackageRequest
+from rez.utils.filesystem import TempDirs
+from rez.utils.memcached import pool_memcached_connections
 from rez.backport.shutilwhich import which
 from rez.rex import RexExecutor, Python, OutputStyle
 from rez.rex_bindings import VersionBinding, VariantBinding, \
     VariantsBinding, RequirementsBinding
-from rez.packages import Variant, validate_package_name, iter_packages
+from rez.packages_ import get_variant, iter_packages
+from rez.package_filter import PackageFilterList
 from rez.shells import create_shell
-from rez.exceptions import ResolvedContextError, PackageCommandError, RezError, \
-    ConfigurationError
+from rez.exceptions import ResolvedContextError, PackageCommandError, RezError
 from rez.vendor.pygraph.readwrite.dot import write as write_dot
 from rez.vendor.pygraph.readwrite.dot import read as read_dot
-from rez.vendor.version.requirement import Requirement
 from rez.vendor.version.version import VersionRange
 from rez.vendor.enum import Enum
 from rez.vendor import yaml
-from rez.yaml import dump_yaml
+from rez.utils.yaml import dump_yaml
+from tempfile import mkdtemp
 import getpass
+import traceback
 import inspect
 import time
 import sys
@@ -29,13 +33,21 @@ import os
 import os.path
 
 
+class RezToolsVisibility(Enum):
+    """Determines if/how rez cli tools are added back to PATH within a
+    resolved environment."""
+    never = 0               # Don't expose rez in resolved env
+    append = 1              # Append to PATH in resolved env
+    prepend = 2             # Prepend to PATH in resolved env
+
+
 class SuiteVisibility(Enum):
-    """Defines what suites on $PATH stay visible when a context in a suite is
-    sourced."""
-    none = 0        # no suites are kept on PATH
-    parent = 1      # Keep the suite containing the context visible;
-    existing = 2    # Keep all suites visible that were on PATH at the time the
-                    # context was entered.
+    """Defines what suites on $PATH stay visible when a new rez environment is
+    resolved."""
+    never = 0               # Don't attempt to keep any suites visible in a new env
+    always = 1              # Keep suites visible in any new env
+    parent = 2              # Keep only the parent suite of a tool visible
+    parent_priority = 3     # Keep all suites visible and the parent takes precedence
 
 
 class PatchLock(Enum):
@@ -70,17 +82,17 @@ def get_lock_request(name, version, patch_lock, weak=True):
         patch_lock (PatchLock): Lock type to apply.
 
     Returns:
-        `Requirement` object, or None if there is no equivalent request.
+        `PackageRequest` object, or None if there is no equivalent request.
     """
     ch = '~' if weak else ''
     if patch_lock == PatchLock.lock:
         s = "%s%s==%s" % (ch, name, str(version))
-        return Requirement(s)
+        return PackageRequest(s)
     elif (patch_lock == PatchLock.no_lock) or (not version):
         return None
     version_ = version.trim(patch_lock.rank)
     s = "%s%s-%s" % (ch, name, str(version_))
-    return Requirement(s)
+    return PackageRequest(s)
 
 
 class ResolvedContext(object):
@@ -94,7 +106,8 @@ class ResolvedContext(object):
     command within a configured python namespace, without spawning a child
     shell.
     """
-    serialize_version = (3, 2)
+    serialize_version = (4, 1)
+    tmpdir_manager = TempDirs(config.tmpdir, prefix="rez_context_")
 
     class Callback(object):
         def __init__(self, max_fails, time_limit, callback, buf=None):
@@ -119,25 +132,26 @@ class ResolvedContext(object):
 
     def __init__(self, package_requests, verbosity=0, timestamp=None,
                  building=False, caching=None, package_paths=None,
-                 add_implicit_packages=True, max_fails=-1, time_limit=-1,
-                 callback=None, package_load_callback=None, max_depth=None,
-                 start_depth=None, max_level=None, buf=None,
-                 callbacks=["pre_commands", "commands", "post_commands"],
-                 branch=None):
+                 package_filter=None, add_implicit_packages=True, max_fails=-1,
+                 time_limit=-1, callback=None, package_load_callback=None,
+                 buf=None):
         """Perform a package resolve, and store the result.
 
         Args:
-            package_requests: List of strings or Requirement objects
+            package_requests: List of strings or PackageRequest objects
                 representing the request.
             verbosity: Verbosity level. One of [0,1,2].
             timestamp: Ignore packages released after this epoch time. Packages
                 released at exactly this time will not be ignored.
             building: True if we're resolving for a build.
             caching: If True, cache(s) may be used to speed the resolve. If
-                False, caches will not be used. If None, defaults to
-                config.resolve_caching.
+                False, caches will not be used. If None, config.resolve_caching
+                is used.
             package_paths: List of paths to search for pkgs, defaults to
                 config.packages_path.
+            package_filter (`PackageFilterBase`): Filter used to exclude certain
+                packages. Defaults to settings from config.package_filter. Use
+                `package_filter.no_filter` to remove all filtering.
             add_implicit_packages: If True, the implicit package list defined
                 by config.implicit_packages is appended to the request.
             max_fails (int): Abort the resolve if the number of failed steps is
@@ -148,24 +162,8 @@ class ResolvedContext(object):
             package_load_callback: If not None, this callable will be called
                 prior to each package being loaded. It is passed a single
                 `Package` object.
-            max_depth (int): If non-zero, this value limits the number of packages
-                that can be loaded for any given package name. This effectively
-                trims the search space - only the highest N package versions are
-                searched. If None, the system configured value is used.
-            start_depth (int): If non-zero, an initial solve is performed with
-                `max_depth` set to this value. If this fails, the depth is doubled,
-                and another solve is performed. If `start_depth` is specified but
-                `max_depth` is not, the solve will iterate until all relevant
-                packages have been loaded. Using this argument  allows us to
-                perform something like a breadth-first search - we put off
-                loading older packages with the assumption that they aren't being
-                used anymore. If None, the system configured value is used.
-            max_level (int): If not None, this value limits the number of levels
-                of requirements to load
             buf (file-like object): Where to print verbose output to, defaults
                 to stdout.
-            callbacks (list): Functions in package.py to execute
-            branch (str): Override version if it exists on disks
         """
         self.load_path = None
 
@@ -175,27 +173,24 @@ class ResolvedContext(object):
         self.building = building
         self.implicit_packages = []
         self.caching = config.resolve_caching if caching is None else caching
-        self.max_depth = (config.resolve_max_depth if max_depth is None
-                          else max_depth)
-        self.start_depth = (config.resolve_start_depth if start_depth is None
-                            else start_depth)
-        self.max_level = max_level
-        self.callbacks = callbacks
-        self.branch = branch
+        self.verbosity = verbosity
 
         self._package_requests = []
         for req in package_requests:
             if isinstance(req, basestring):
-                req = Requirement(req)
+                req = PackageRequest(req)
             self._package_requests.append(req)
 
         if add_implicit_packages:
-            self.implicit_packages = [Requirement(x)
+            self.implicit_packages = [PackageRequest(x)
                                       for x in config.implicit_packages]
-        # package paths
+
         self.package_paths = (config.packages_path if package_paths is None
                               else package_paths)
         self.package_paths = list(dedup(self.package_paths))
+
+        self.package_filter = (PackageFilterList.singleton if package_filter is None
+                               else package_filter)
 
         # patch settings
         self.default_patch_lock = PatchLock.no_lock
@@ -217,7 +212,8 @@ class ResolvedContext(object):
         self.failure_description = None
         self.graph_string = None
         self.graph_ = None
-        self.solve_time = 0.0
+        self.from_cache = None
+        self.solve_time = 0.0  # inclusive of load time
         self.load_time = 0.0
 
         # suite information
@@ -234,17 +230,14 @@ class ResolvedContext(object):
 
         resolver = Resolver(package_requests=request,
                             package_paths=self.package_paths,
-                            timestamp=self.timestamp,
+                            package_filter=self.package_filter,
+                            timestamp=self.requested_timestamp,
                             building=self.building,
-                            caching=caching,
+                            caching=self.caching,
                             callback=callback_,
                             package_load_callback=package_load_callback,
                             verbosity=verbosity,
-                            max_depth=self.max_depth,
-                            start_depth=self.start_depth,
-                            max_level=self.max_level,
-                            buf=buf,
-                            branch=self.branch,)
+                            buf=buf)
         resolver.solve()
 
         # convert the results
@@ -253,19 +246,10 @@ class ResolvedContext(object):
         self.load_time = resolver.load_time
         self.failure_description = resolver.failure_description
         self.graph_ = resolver.graph
-
-        actual_solve_time = self.solve_time - self.load_time
-        timings.add("resolve", actual_solve_time)
+        self.from_cache = resolver.from_cache
 
         if self.status_ == ResolverStatus.solved:
-            # convert solver.Variants to packages.Variants
-            pkgs = []
-            for variant in resolver.resolved_packages:
-                resource_handle = variant.userdata
-                resource = resource_handle.get_resource()
-                pkg = Variant(resource)
-                pkgs.append(pkg)
-            self._resolved_packages = pkgs
+            self._resolved_packages = resolver.resolved_packages
 
     def __str__(self):
         request = self.requested_packages(include_implicit=True)
@@ -299,7 +283,7 @@ class ResolvedContext(object):
                 to the result.
 
         Returns:
-            List of `Requirement` objects.
+            List of `PackageRequest` objects.
         """
         if include_implicit:
             return self._package_requests + self.implicit_packages
@@ -365,7 +349,7 @@ class ResolvedContext(object):
         import copy
         return copy.copy(self)
 
-    # TODO deprecate in favor of patch() method
+    # TODO: deprecate in favor of patch() method
     def get_patched_request(self, package_requests=None,
                             package_subtractions=None, strict=False, rank=0):
         """Get a 'patched' request.
@@ -386,7 +370,7 @@ class ResolvedContext(object):
         in the order that they appear in `package_requests`.
 
         Args:
-            package_requests (list of str or list of `Requirement`):
+            package_requests (list of str or list of `PackageRequest`):
                 Overriding requests.
             package_subtractions (list of str): Any original request with a
                 package name in this list is removed, before the new requests
@@ -401,14 +385,14 @@ class ResolvedContext(object):
                 `strict` is True, rank is ignored.
 
         Returns:
-            List of `Requirement` objects that can be used to construct a new
-            `ResolvedContext` object.
+            List of `PackageRequest` objects that can be used to construct a
+            new `ResolvedContext` object.
         """
         # assemble source request
         if strict:
             request = []
             for variant in self.resolved_packages:
-                req = Requirement(variant.qualified_package_name)
+                req = PackageRequest(variant.qualified_package_name)
                 request.append(req)
         else:
             request = self.requested_packages()[:]
@@ -427,8 +411,6 @@ class ResolvedContext(object):
 
         # apply subtractions
         if package_subtractions:
-            for pkg_name in package_subtractions:
-                validate_package_name(pkg_name)
             request = [x for x in request if x.name not in package_subtractions]
 
         # apply overrides
@@ -438,7 +420,7 @@ class ResolvedContext(object):
 
             for req in package_requests:
                 if isinstance(req, basestring):
-                    req = Requirement(req)
+                    req = PackageRequest(req)
 
                 if req.name in request_dict:
                     i, req_ = request_dict[req.name]
@@ -515,18 +497,7 @@ class ResolvedContext(object):
         try:
             return cls._read_from_buffer(buf, identifier_str)
         except Exception as e:
-            exc_name = e.__class__.__name__
-            msg = "Failed to load context"
-            if identifier_str:
-                msg += " from %s" % identifier_str
-            raise ResolvedContextError("%s: %s: %s" % (msg, exc_name, str(e)))
-
-    @classmethod
-    def _read_from_buffer(cls, buf, identifier_str=None):
-        content = buf.read()
-        doc = yaml.load(content)
-        r = cls.from_dict(doc, identifier_str)
-        return r
+            cls._load_error(e, identifier_str)
 
     def get_resolve_diff(self, other):
         """Get the difference between the resolve in this context and another.
@@ -590,13 +561,13 @@ class ResolvedContext(object):
                 if other_pkg.version > pkg.version:
                     r = VersionRange.as_span(lower_version=pkg.version,
                                              upper_version=other_pkg.version)
-                    it = iter_packages(pkg.name, range=r)
+                    it = iter_packages(pkg.name, range_=r)
                     pkgs = sorted(it, key=lambda x: x.version)
                     newer_packages[pkg.name] = pkgs
                 elif other_pkg.version < pkg.version:
                     r = VersionRange.as_span(lower_version=other_pkg.version,
                                              upper_version=pkg.version)
-                    it = iter_packages(pkg.name, range=r)
+                    it = iter_packages(pkg.name, range_=r)
                     pkgs = sorted(it, key=lambda x: x.version, reverse=True)
                     older_packages[pkg.name] = pkgs
 
@@ -614,8 +585,19 @@ class ResolvedContext(object):
             d["removed_packages"] = removed_packages
         return d
 
-    def print_info(self, buf=sys.stdout, verbosity=0):
+    @pool_memcached_connections
+    def print_info(self, buf=sys.stdout, verbosity=0, source_order=False,
+                   show_resolved_uris=False):
         """Prints a message summarising the contents of the resolved context.
+
+        Args:
+            buf (file-like object): Where to print this info to.
+            verbosity (bool): Verbose mode.
+            source_order (bool): If True, print resolved packages in the order
+                they are sources, rather than alphabetical order.
+            show_resolved_uris (bool): By default, resolved packages have their
+                'root' property listed, or their 'uri' if 'root' is None. Use
+                this option to list 'uri' regardless.
         """
         _pr = Printer(buf)
 
@@ -640,27 +622,29 @@ class ResolvedContext(object):
         _pr()
 
         if verbosity:
+            _pr("search paths:", heading)
             rows = []
             colors = []
-            local_packages_path = os.path.realpath(config.local_packages_path)
-            _pr("search paths:", heading)
-
             for path in self.package_paths:
-                label = ""
-                col = None
-                path_ = os.path.realpath(path)
-                if not os.path.exists(path_):
-                    label = "(NOT FOUND)"
-                    col = critical
-                elif path_ == local_packages_path:
+                if package_repository_manager.are_same(path, config.local_packages_path):
                     label = "(local)"
                     col = local
+                else:
+                    label = ""
+                    col = None
                 rows.append((path, label))
                 colors.append(col)
 
             for col, line in zip(colors, columnise(rows)):
                 _pr(line, col)
             _pr()
+
+            if self.package_filter:
+                data = self.package_filter.to_pod()
+                txt = dump_yaml(data)
+                _pr("package filters:", heading)
+                _pr(txt)
+                _pr()
 
         _pr("requested packages:", heading)
         rows = []
@@ -680,17 +664,31 @@ class ResolvedContext(object):
         _pr("resolved packages:", heading)
         rows = []
         colors = []
-        for pkg in (self.resolved_packages or []):
+
+        resolved_packages = self.resolved_packages or []
+        if not source_order:
+            resolved_packages = sorted(resolved_packages, key=lambda x: x.name)
+
+        for pkg in resolved_packages:
             t = []
             col = None
-            if not os.path.exists(pkg.root):
-                t.append('NOT FOUND')
-                col = critical
+            location = None
+
+            # print root/uri
+            if show_resolved_uris or not pkg.root:
+                location = pkg.uri
+            else:
+                location = pkg.root
+                if not os.path.exists(pkg.root):
+                    t.append('NOT FOUND')
+                    col = critical
+
             if pkg.is_local:
                 t.append('local')
                 col = local
+
             t = '(%s)' % ', '.join(t) if t else ''
-            rows.append((pkg.qualified_package_name, pkg.root, t))
+            rows.append((pkg.qualified_package_name, location, t))
             colors.append(col)
 
         for col, line in zip(colors, columnise(rows)):
@@ -698,14 +696,13 @@ class ResolvedContext(object):
 
         if verbosity:
             _pr()
-            _pr("resolve details:", heading)
-            _pr("start depth: %s" % (self.start_depth or '-'))
-            _pr("max depth: %s" % (self.max_depth or '-'))
-            _pr("load time: %.02f secs" % self.load_time)
             actual_solve_time = self.solve_time - self.load_time
-            _pr("solve time: %.02f secs" % actual_solve_time)
+            _pr("resolve details:", heading)
+            _pr("load time:   %.02f secs" % self.load_time)
+            _pr("solve time:  %.02f secs" % actual_solve_time)
+            _pr("from cache:  %s" % self.from_cache)
             if self.load_path:
-                _pr("rxt file: %s" % self.load_path)
+                _pr("rxt file:    %s" % self.load_path)
 
         if verbosity >= 2:
             _pr()
@@ -891,7 +888,7 @@ class ResolvedContext(object):
         """Returns the commandline tools available in the context.
 
         Args:
-            request_only: If True, only return the key from resolved packages
+            request_only: If True, only return the tools from resolved packages
                 that were also present in the request.
 
         Returns:
@@ -954,14 +951,13 @@ class ResolvedContext(object):
             style (): Style to format shell code in.
         """
         executor = self._create_executor(interpreter=create_shell(shell),
-                                         parent_environ=parent_environ,
-                                         style=style)
+                                         parent_environ=parent_environ)
 
         if self.load_path and os.path.isfile(self.load_path):
             executor.env.REZ_RXT_FILE = self.load_path
 
         self._execute(executor)
-        return executor.get_output()
+        return executor.get_output(style)
 
     @_on_success
     def get_actions(self, parent_environ=None):
@@ -1099,9 +1095,8 @@ class ResolvedContext(object):
                 return immediately. If None, will default to blocking if the
                 shell is interactive.
             actions_callback: Callback with signature (RexExecutor). This lets
-                the user add custom actions to the context, such as setting
-                extra environment variables. These actions are run before package
-                actions.
+                the user append custom actions to the context, such as setting
+                extra environment variables.
             context_filepath: If provided, the context file will be written
                 here, rather than to the default location (which is in a
                 tempdir). If you use this arg, you are responsible for cleaning
@@ -1119,37 +1114,29 @@ class ResolvedContext(object):
             If blocking: A 3-tuple of (returncode, stdout, stderr);
             If non-blocking - A subprocess.Popen object for the shell process.
         """
-        if parent_environ is None:
-            # Remove blacklisted env var from parent environment
-            parent_environ = {k: v for (k, v) in os.environ.iteritems() if k not in config.blacklisted_parent_variables}
+        sh = create_shell(shell)
 
         if hasattr(command, "__iter__"):
-            command = shlex_join(command)
+            command = sh.join(command)
 
         # start a new session if specified
         if start_new_session:
-            Popen_args["preexec_fn"] = os.setpgrp
+            Popen_args.update(config.new_session_popen_args)
 
         # open a separate terminal if specified
         if detached:
             term_cmd = config.terminal_emulator_command
             if term_cmd:
-                term_cmd = term_cmd.strip().split()
-            else:
-                from rez.platform_ import platform_
-                term_cmd = platform_.terminal_emulator_command
-            if term_cmd:
-                pre_command = term_cmd
+                pre_command = term_cmd.strip().split()
 
         # block if the shell is likely to be interactive
         if block is None:
             block = not (command or stdin)
 
-        # create the shell
-        sh = create_shell(shell)
-
-        # context and rxt files
-        tmpdir = mkdtemp_()
+        # context and rxt files. If running detached, don't cleanup files, because
+        # rez-env returns too early and deletes the tmp files before the detached
+        # process can use them
+        tmpdir = self.tmpdir_manager.mkdtemp(cleanup=not detached)
 
         if self.load_path and os.path.isfile(self.load_path):
             rxt_file = self.load_path
@@ -1172,6 +1159,9 @@ class ResolvedContext(object):
         with open(context_file, 'w') as f:
             f.write(context_code)
 
+        quiet = quiet or (RezToolsVisibility[config.rez_tools_visibility]
+                          == RezToolsVisibility.never)
+
         # spawn the shell subprocess
         p = sh.spawn_shell(context_file,
                            tmpdir,
@@ -1192,7 +1182,7 @@ class ResolvedContext(object):
     def to_dict(self):
         resolved_packages = []
         for pkg in (self._resolved_packages or []):
-            resolved_packages.append(pkg.resource_handle.to_dict())
+            resolved_packages.append(pkg.handle.to_dict())
 
         serialize_version = '.'.join(str(x) for x in ResolvedContext.serialize_version)
         patch_locks = dict((k, v.name) for k, v in self.patch_locks)
@@ -1207,8 +1197,7 @@ class ResolvedContext(object):
             implicit_packages=[str(x) for x in self.implicit_packages],
             package_requests=[str(x) for x in self._package_requests],
             package_paths=self.package_paths,
-            max_depth=(self.max_depth or 0),
-            start_depth=(self.start_depth or 0),
+            package_filter=self.package_filter.to_pod(),
 
             default_patch_lock=self.default_patch_lock.name,
             patch_locks=patch_locks,
@@ -1229,6 +1218,7 @@ class ResolvedContext(object):
             resolved_packages=resolved_packages,
             failure_description=self.failure_description,
             graph=self.graph(as_dot=True),
+            from_cache=self.from_cache,
             solve_time=self.solve_time,
             load_time=self.load_time)
 
@@ -1249,8 +1239,10 @@ class ResolvedContext(object):
         def _print_version(value):
             return '.'.join(str(x) for x in value)
 
-        load_ver = [int(x) for x in str(d["serialize_version"]).split('.')]
+        toks = str(d["serialize_version"]).split('.')
+        load_ver = tuple(int(x) for x in toks)
         curr_ver = ResolvedContext.serialize_version
+
         if load_ver[0] > curr_ver[0]:
             msg = ["The context"]
             if identifier_str:
@@ -1267,8 +1259,8 @@ class ResolvedContext(object):
         r.timestamp = d["timestamp"]
         r.building = d["building"]
         r.caching = d["caching"]
-        r.implicit_packages = [Requirement(x) for x in d["implicit_packages"]]
-        r._package_requests = [Requirement(x) for x in d["package_requests"]]
+        r.implicit_packages = [PackageRequest(x) for x in d["implicit_packages"]]
+        r._package_requests = [PackageRequest(x) for x in d["package_requests"]]
         r.package_paths = d["package_paths"]
 
         r.rez_version = d["rez_version"]
@@ -1290,9 +1282,13 @@ class ResolvedContext(object):
 
         r._resolved_packages = []
         for d_ in d["resolved_packages"]:
-            resource_handle = ResourceHandle.from_dict(d_)
-            resource = resource_handle.get_resource()
-            variant = Variant(resource)
+            variant_handle = d_
+            if load_ver < (4, 0):
+                # -- SINCE SERIALIZE VERSION 4.0
+                from rez.utils.backcompat import convert_old_variant_handle
+                variant_handle = convert_old_variant_handle(variant_handle)
+
+            variant = get_variant(variant_handle)
             r._resolved_packages.append(variant)
 
         # -- SINCE SERIALIZE VERSION 1
@@ -1310,27 +1306,45 @@ class ResolvedContext(object):
         patch_locks = d.get("patch_locks", {})
         r.patch_locks = dict((k, PatchLock[v]) for k, v in patch_locks)
 
-        # -- SINCE SERIALIZE VERSION 3.1
+        # -- SINCE SERIALIZE VERSION 4.0
 
-        r.max_depth = d.get("max_depth", 0)
-        r.start_depth = d.get("start_depth", 0)
+        r.from_cache = d.get("from_cache", False)
+
+        # -- SINCE SERIALIZE VERSION 4.1
+
+        data = d.get("package_filter", [])
+        r.package_filter = PackageFilterList.from_pod(data)
 
         return r
+
+    @classmethod
+    def _read_from_buffer(cls, buf, identifier_str=None):
+        content = buf.read()
+        doc = yaml.load(content)
+        context = cls.from_dict(doc, identifier_str)
+        return context
+
+    @classmethod
+    def _load_error(cls, e, path=None):
+        exc_name = e.__class__.__name__
+        msg = "Failed to load context"
+        if path:
+            msg += " from %s" % path
+        raise ResolvedContextError("%s: %s: %s" % (msg, exc_name, str(e)))
 
     def _set_parent_suite(self, suite_path, context_name):
         self.parent_suite_path = suite_path
         self.suite_context_name = context_name
 
-    def _create_executor(self, interpreter, parent_environ,
-                         style=OutputStyle.file):
+    def _create_executor(self, interpreter, parent_environ):
         parent_vars = True if config.all_parent_variables \
             else config.parent_variables
 
         return RexExecutor(interpreter=interpreter,
-                           output_style=style,
                            parent_environ=parent_environ,
                            parent_variables=parent_vars)
 
+    @pool_memcached_connections
     def _execute(self, executor):
         br = '#' * 80
         br_minor = '-' * 80
@@ -1400,7 +1414,7 @@ class ResolvedContext(object):
                                       variant=VariantBinding(pkg))
 
         # commands
-        for attr in self.callbacks:
+        for attr in ("pre_commands", "commands", "post_commands"):
             found = False
             for pkg in resolved_pkgs:
                 commands = getattr(pkg, attr)
@@ -1417,45 +1431,81 @@ class ResolvedContext(object):
                 executor.bind('root',       pkg.root)
                 executor.bind('base',       pkg.base)
 
+                # show a meaningful filename in traceback if an error occurs.
+                # Can't use an actual filepath because (a) the package may not
+                # have one and (b) it might be a yaml file (line numbers would
+                # not match up in this case).
+                filename = "<%s>" % pkg.uri
+
+                exc = None
+                trace = None
                 try:
-                    if isinstance(commands, basestring):
-                        # rex code is in a string
-                        executor.execute_code(commands)
-                    elif inspect.isfunction(commands):
-                        # rex code is a function in a package.py
-                        executor.execute_function(commands)
+                    executor.execute_code(commands.source, filename=filename)
+                except IndentationError as e:
+                    commands_ = commands.corrected_for_indent()
+                    if commands_ is commands:
+                        exc = e
+                        trace = traceback.format_exc()
+                    else:
+                        try:
+                            executor.execute_code(commands_.source, filename=filename)
+                        except error_class as e:
+                            exc = e
+                            trace = traceback.format_exc()
                 except error_class as e:
-                    msg = "Error in commands in file %s:\n%s" \
-                          % (pkg.path, str(e))
+                    exc = e
+                    trace = traceback.format_exc()
+
+                if exc:
+                    msg = "Error in %s in package %r:\n" % (attr, pkg.uri)
+                    if self.verbosity >= 2:
+                        msg += trace
+                    else:
+                        msg += str(exc)
                     raise PackageCommandError(msg)
 
         _heading("post system setup")
 
-        # suite visibility (if this is a context in a suite, existing suite(s)
-        # may be kept on $PATH)
-        if self.parent_suite_path:
-            from rez.suite import Suite
-
-            value = config.context_suite_visibility.lower()
-            try:
-                mode = SuiteVisibility[value]
-            except KeyError:
-                raise ConfigurationError("Invalid suite visiblity setting %r" % value)
-
-            suite_paths = []
-            if mode == SuiteVisibility.parent:
-                suite_paths.append(self.parent_suite_path)
-            elif mode == SuiteVisibility.existing:
-                suite_paths = Suite.visible_suite_paths()
-                if self.parent_suite_path not in suite_paths:
-                    suite_paths.insert(0, self.parent_suite_path)
-
-            for path in suite_paths:
-                tools_path = os.path.join(path, "bin")
-                executor.env.PATH.append(tools_path)
+        # append suite paths based on suite visibility setting
+        self._append_suite_paths(executor)
 
         # append system paths
         executor.append_system_paths()
 
-        # append rez path
-        executor.append_rez_path()
+        # add rez path so that rez commandline tools are still available within
+        # the resolved environment
+        mode = RezToolsVisibility[config.rez_tools_visibility]
+        if mode == RezToolsVisibility.append:
+            executor.append_rez_path()
+        elif mode == RezToolsVisibility.prepend:
+            executor.prepend_rez_path()
+
+    def _append_suite_paths(self, executor):
+        from rez.suite import Suite
+
+        mode = SuiteVisibility[config.suite_visibility]
+        if mode == SuiteVisibility.never:
+            return
+
+        visible_suite_paths = Suite.visible_suite_paths()
+        if not visible_suite_paths:
+            return
+
+        suite_paths = []
+        if mode == SuiteVisibility.always:
+            suite_paths = visible_suite_paths
+        elif self.parent_suite_path:
+            if mode == SuiteVisibility.parent:
+                suite_paths = [self.parent_suite_path]
+            elif mode == SuiteVisibility.parent_priority:
+                pop_parent = None
+                try:
+                    parent_index = visible_suite_paths.index(self.parent_suite_path)
+                    pop_parent = visible_suite_paths.pop(parent_index)
+                except ValueError:
+                    pass
+                suite_paths.insert(0, (pop_parent or self.parent_suite_path))
+
+        for path in suite_paths:
+            tools_path = os.path.join(path, "bin")
+            executor.env.PATH.append(tools_path)

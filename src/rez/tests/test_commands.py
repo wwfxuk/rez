@@ -1,3 +1,6 @@
+"""
+test package commands
+"""
 from rez.vendor.version.requirement import VersionedObject
 from rez.rex import Comment, EnvAction, Shebang, Setenv, Alias, Appendenv
 from rez.resolved_context import ResolvedContext
@@ -7,18 +10,24 @@ import os
 
 
 class TestCommands(TestBase):
+    # Note some tests use a hardcoded '/' path separator instead of
+    # os.path.join.  This is because they are being compared against
+    # baked commands in existing package.yaml|py files in the data
+    # directory where the separator is static.
 
     @classmethod
     def get_packages_path(cls):
-        path = os.path.dirname(__file__)
+        path = os.path.realpath(os.path.dirname(__file__))
         return os.path.join(path, "data", "commands", "packages")
 
     @classmethod
     def setUpClass(cls):
         cls.settings = dict(
             packages_path=[cls.get_packages_path()],
+            package_filter=None,
             resolve_caching=False,
             warn_untimestamped=False,
+            warn_old_commands=False,
             implicit_packages=[],
             rez_1_environment_variables=False)
 
@@ -63,7 +72,7 @@ class TestCommands(TestBase):
                 Setenv('REXTEST_ROOT', base),
                 Setenv('REXTEST_VERSION', verstr),
                 Setenv('REXTEST_MAJOR_VERSION', str(pkg.version[0])),
-                Setenv('REXTEST_DIRS', os.path.join(base, "data")),
+                Setenv('REXTEST_DIRS', "/".join([base, "data"])),
                 Alias('rextest', 'foobar')]
         return cmds
 
@@ -111,10 +120,10 @@ class TestCommands(TestBase):
                 Setenv('REXTEST_ROOT', base),
                 Setenv('REXTEST_VERSION', "1.3"),
                 Setenv('REXTEST_MAJOR_VERSION', "1"),
-                Setenv('REXTEST_DIRS', os.path.join(base, "data")),
+                Setenv('REXTEST_DIRS', "/".join([base, "data"])),
                 Alias('rextest', 'foobar'),
                 # rextext2's commands
-                Appendenv('REXTEST_DIRS', os.path.join(base2, "data2")),
+                Appendenv('REXTEST_DIRS', "/".join([base2, "data2"])),
                 Setenv('REXTEST2_REXTEST_VER', '1.3'),
                 Setenv('REXTEST2_REXTEST_BASE',
                        os.path.join(self.packages_path, "rextest", "1.3"))]
@@ -122,17 +131,6 @@ class TestCommands(TestBase):
         self._test_package(pkg, {}, cmds)
         # first prepend should still override
         self._test_package(pkg, {"REXTEST_DIRS": "TEST"}, cmds)
-
-
-def get_test_suites():
-    suites = []
-    suite = unittest.TestSuite()
-    suite.addTest(TestCommands("test_old_yaml"))
-    suite.addTest(TestCommands("test_new_yaml"))
-    suite.addTest(TestCommands("test_py"))
-    suite.addTest(TestCommands("test_2"))
-    suites.append(suite)
-    return suites
 
 
 if __name__ == '__main__':

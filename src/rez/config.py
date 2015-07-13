@@ -1,14 +1,20 @@
-from rez.util import deep_update, propertycache, RO_AttrDictWrapper, \
-    convert_dicts, AttrDictWrapper, DataWrapper, ObjectStringFormatter, \
-    expandvars
+from rez import __version__
+from rez.util import deep_update
+from rez.utils.data_utils import AttrDictWrapper, RO_AttrDictWrapper, \
+    convert_dicts, cached_property, cached_class_property, LazyAttributeMeta
+from rez.utils.formatting import expandvars, expanduser
+from rez.utils.logging_ import get_debug_printer
+from rez.utils.scope import scoped_format
 from rez.exceptions import ConfigurationError
 from rez import module_root_path
 from rez.system import system
-from rez.vendor.schema.schema import Schema, SchemaError, Optional, And, Or
+from rez.vendor.schema.schema import Schema, SchemaError, Optional, And, Or, Use
+from rez.vendor.enum import Enum
 from rez.vendor import yaml
 from rez.vendor.yaml.error import YAMLError
 from rez.backport.lru_cache import lru_cache
 from UserDict import UserDict
+from inspect import ismodule
 import os
 import os.path
 import copy
@@ -41,7 +47,7 @@ class Setting(object):
         try:
             data = self._validate(data)
             data = self.schema.validate(data)
-            data = Expand().validate(data)
+            data = expand_system_vars(data)
         except SchemaError as e:
             raise ConfigurationError("Misconfigured setting '%s': %s"
                                      % (self.key, str(e)))
@@ -51,18 +57,22 @@ class Setting(object):
         # overriden settings take precedence.
         if self.key in self.config.overrides:
             return self.config.overrides[self.key]
+
         # next, env-var
-        if not self.config.locked:
+        if self._env_var_name and not self.config.locked:
             value = os.getenv(self._env_var_name)
             if value is not None:
                 return self._parse_env_var(value)
+
         # next, data unchanged
         if data is not None:
             return data
+
         # some settings have a programmatic default
         attr = "_get_%s" % self.key
         if hasattr(self.config, attr):
             return getattr(self.config, attr)()
+
         # setting is None
         return None
 
@@ -95,7 +105,8 @@ class StrList(Setting):
 
 
 class OptionalStrList(StrList):
-    schema = Or(None, [basestring])
+    schema = Or(And(None, Use(lambda x: [])),
+                [basestring])
 
 
 class PathList(StrList):
@@ -144,102 +155,145 @@ class Dict(Setting):
                 % value)
 
 
+class OptionalDict(Setting):
+    schema = Or(And(None, Use(lambda x: {})),
+                dict)
+
+
+class OptionalDictOrDictList(Setting):
+    schema = Or(And(None, Use(lambda x: [])),
+                And(dict, Use(lambda x: [x])),
+                [dict])
+    _env_var_name = None
+
+
+class SuiteVisibility_(Str):
+    @cached_class_property
+    def schema(cls):
+        from rez.resolved_context import SuiteVisibility
+        return Or(*(x.name for x in SuiteVisibility))
+
+
+class VariantSelectMode_(Str):
+    @cached_class_property
+    def schema(cls):
+        from rez.solver import VariantSelectMode
+        return Or(*(x.name for x in VariantSelectMode))
+
+
+class RezToolsVisibility_(Str):
+    @cached_class_property
+    def schema(cls):
+        from rez.resolved_context import RezToolsVisibility
+        return Or(*(x.name for x in RezToolsVisibility))
+
+
 config_schema = Schema({
-    "packages_path":                    PathList,
-    "plugin_path":                      PathList,
-    "bind_module_path":                 PathList,
-    "implicit_packages":                StrList,
-    "parent_variables":                 StrList,
-    "blacklisted_parent_variables":     StrList,
-    "resetting_variables":              StrList,
-    "release_hooks":                    StrList,
-    "critical_styles":                  OptionalStrList,
-    "error_styles":                     OptionalStrList,
-    "warning_styles":                   OptionalStrList,
-    "info_styles":                      OptionalStrList,
-    "debug_styles":                     OptionalStrList,
-    "heading_styles":                   OptionalStrList,
-    "local_styles":                     OptionalStrList,
-    "implicit_styles":                  OptionalStrList,
-    "alias_styles":                     OptionalStrList,
-    "soma_lock_styles":                 OptionalStrList,
-    "local_packages_path":              Str,
-    "release_packages_path":            Str,
-    "dot_image_format":                 Str,
-    "prompt":                           Str,
-    "build_directory":                  Str,
-    "documentation_url":                Str,
-    "context_suite_visibility":         Str,
-    "suite_alias_prefix_char":          Char,
-    "tmpdir":                           OptionalStr,
-    "default_shell":                    OptionalStr,
-    "terminal_emulator_command":        OptionalStr,
-    "editor":                           OptionalStr,
-    "image_viewer":                     OptionalStr,
-    "browser":                          OptionalStr,
-    "diff_tool":                        OptionalStr,
-    "critical_fore":                    OptionalStr,
-    "critical_back":                    OptionalStr,
-    "error_fore":                       OptionalStr,
-    "error_back":                       OptionalStr,
-    "warning_fore":                     OptionalStr,
-    "warning_back":                     OptionalStr,
-    "info_fore":                        OptionalStr,
-    "info_back":                        OptionalStr,
-    "debug_fore":                       OptionalStr,
-    "debug_back":                       OptionalStr,
-    "heading_fore":                     OptionalStr,
-    "heading_back":                     OptionalStr,
-    "local_fore":                       OptionalStr,
-    "local_back":                       OptionalStr,
-    "implicit_fore":                    OptionalStr,
-    "implicit_back":                    OptionalStr,
-    "alias_fore":                       OptionalStr,
-    "alias_back":                       OptionalStr,
-    "soma_lock_fore":                   OptionalStr,
-    "soma_lock_back":                   OptionalStr,
-    "resource_caching_maxsize":         Int,
-    "resolve_max_depth":                Int,
-    "resolve_start_depth":              Int,
-    "color_enabled":                    Bool,
-    "resource_caching":                 Bool,
-    "resolve_caching":                  Bool,
-    "prune_failed_graph":               Bool,
-    "all_parent_variables":             Bool,
-    "all_resetting_variables":          Bool,
-    "warn_shell_startup":               Bool,
-    "warn_untimestamped":               Bool,
-    "warn_all":                         Bool,
-    "warn_none":                        Bool,
-    "debug_plugins":                    Bool,
-    "debug_package_release":            Bool,
-    "debug_bind_modules":               Bool,
-    "debug_resources":                  Bool,
-    "debug_all":                        Bool,
-    "debug_none":                       Bool,
-    "quiet":                            Bool,
-    "show_progress":                    Bool,
-    "catch_rex_errors":                 Bool,
-    "prefix_prompt":                    Bool,
-    "warn_old_commands":                Bool,
-    "error_old_commands":               Bool,
-    "debug_old_commands":               Bool,
-    "warn_package_name_mismatch":       Bool,
-    "error_package_name_mismatch":      Bool,
-    "warn_version_mismatch":            Bool,
-    "error_version_mismatch":           Bool,
-    "warn_nonstring_version":           Bool,
-    "error_nonstring_version":          Bool,
-    "warn_commands2":                   Bool,
-    "error_commands2":                  Bool,
-    "rez_1_environment_variables":      Bool,
-    "rez_1_cmake_variables":            Bool,
-    "disable_rez_1_compatibility":      Bool,
-    "env_var_separators":               Dict,
+    "packages_path":                                PathList,
+    "plugin_path":                                  PathList,
+    "bind_module_path":                             PathList,
+    "implicit_packages":                            StrList,
+    "parent_variables":                             StrList,
+    "resetting_variables":                          StrList,
+    "release_hooks":                                StrList,
+    "critical_styles":                              OptionalStrList,
+    "error_styles":                                 OptionalStrList,
+    "warning_styles":                               OptionalStrList,
+    "info_styles":                                  OptionalStrList,
+    "debug_styles":                                 OptionalStrList,
+    "heading_styles":                               OptionalStrList,
+    "local_styles":                                 OptionalStrList,
+    "implicit_styles":                              OptionalStrList,
+    "alias_styles":                                 OptionalStrList,
+    "memcached_uri":                                OptionalStrList,
+    "local_packages_path":                          Str,
+    "release_packages_path":                        Str,
+    "dot_image_format":                             Str,
+    "build_directory":                              Str,
+    "documentation_url":                            Str,
+    "suite_visibility":                             SuiteVisibility_,
+    "rez_tools_visibility":                         RezToolsVisibility_,
+    "suite_alias_prefix_char":                      Char,
+    "tmpdir":                                       OptionalStr,
+    "default_shell":                                OptionalStr,
+    "terminal_emulator_command":                    OptionalStr,
+    "editor":                                       OptionalStr,
+    "image_viewer":                                 OptionalStr,
+    "difftool":                                     OptionalStr,
+    "browser":                                      OptionalStr,
+    "critical_fore":                                OptionalStr,
+    "critical_back":                                OptionalStr,
+    "error_fore":                                   OptionalStr,
+    "error_back":                                   OptionalStr,
+    "warning_fore":                                 OptionalStr,
+    "warning_back":                                 OptionalStr,
+    "info_fore":                                    OptionalStr,
+    "info_back":                                    OptionalStr,
+    "debug_fore":                                   OptionalStr,
+    "debug_back":                                   OptionalStr,
+    "heading_fore":                                 OptionalStr,
+    "heading_back":                                 OptionalStr,
+    "local_fore":                                   OptionalStr,
+    "local_back":                                   OptionalStr,
+    "implicit_fore":                                OptionalStr,
+    "implicit_back":                                OptionalStr,
+    "alias_fore":                                   OptionalStr,
+    "alias_back":                                   OptionalStr,
+    "resource_caching_maxsize":                     Int,
+    "max_package_changelog_chars":                  Int,
+    "memcached_package_file_min_compress_len":      Int,
+    "memcached_context_file_min_compress_len":      Int,
+    "memcached_listdir_min_compress_len":           Int,
+    "memcached_resolve_min_compress_len":           Int,
+    "color_enabled":                                Bool,
+    "resolve_caching":                              Bool,
+    "cache_package_files":                          Bool,
+    "cache_listdir":                                Bool,
+    "prune_failed_graph":                           Bool,
+    "all_parent_variables":                         Bool,
+    "all_resetting_variables":                      Bool,
+    "package_commands_sourced_first":               Bool,
+    "warn_shell_startup":                           Bool,
+    "warn_untimestamped":                           Bool,
+    "warn_all":                                     Bool,
+    "warn_none":                                    Bool,
+    "debug_file_loads":                             Bool,
+    "debug_plugins":                                Bool,
+    "debug_package_release":                        Bool,
+    "debug_bind_modules":                           Bool,
+    "debug_resources":                              Bool,
+    "debug_package_exclusions":                     Bool,
+    "debug_resolve_memcache":                       Bool,
+    "debug_memcache":                               Bool,
+    "debug_all":                                    Bool,
+    "debug_none":                                   Bool,
+    "quiet":                                        Bool,
+    "show_progress":                                Bool,
+    "catch_rex_errors":                             Bool,
+    "set_prompt":                                   Bool,
+    "prefix_prompt":                                Bool,
+    "warn_old_commands":                            Bool,
+    "error_old_commands":                           Bool,
+    "debug_old_commands":                           Bool,
+    "warn_package_name_mismatch":                   Bool,
+    "error_package_name_mismatch":                  Bool,
+    "warn_version_mismatch":                        Bool,
+    "error_version_mismatch":                       Bool,
+    "warn_nonstring_version":                       Bool,
+    "error_nonstring_version":                      Bool,
+    "warn_commands2":                               Bool,
+    "error_commands2":                              Bool,
+    "rez_1_environment_variables":                  Bool,
+    "rez_1_cmake_variables":                        Bool,
+    "disable_rez_1_compatibility":                  Bool,
+    "env_var_separators":                           Dict,
+    "variant_select_mode":                          VariantSelectMode_,
+    "package_filter":                               OptionalDictOrDictList,
+    "new_session_popen_args":                       OptionalDict,
 
     # GUI settings
-    "use_pyside":                       Bool,
-    "use_pyqt":                         Bool
+    "use_pyside":                                   Bool,
+    "use_pyqt":                                     Bool
 })
 
 
@@ -252,74 +306,11 @@ _plugin_config_dict = {
 }
 
 
-# TODO move into config?
-class Expand(object):
-    """Schema that applies variable expansion."""
-    namespace = dict(system=system)
-    formatter = ObjectStringFormatter(AttrDictWrapper(namespace),
-                                      expand='unchanged')
-
-    def __init__(self):
-        pass
-
-    def validate(self, data):
-        def _expand(value):
-            if isinstance(value, basestring):
-                value = expandvars(value)
-                value = os.path.expanduser(value)
-                return self.formatter.format(value)
-            elif isinstance(value, list):
-                return [_expand(x) for x in value]
-            elif isinstance(value, dict):
-                return dict((k, _expand(v)) for k, v in value.iteritems())
-            else:
-                return value
-        return _expand(data)
-
-
-def _to_schema(config_dict, required, allow_custom_keys=True,
-               inject_expansion=True):
-    """Convert a dict of Schemas into a Schema.
-
-    Args:
-        required (bool): Whether to make schema keys optional or required.
-        allow_custom_keys (bool): If True, creates a schema that allows
-            custom items in dicts.
-        inject_expansion (bool): If True, updates schema values by adding
-            variable expansion. This is used to update plugins schemas, so
-            plugin authors don't have to explicitly support expansion.
-
-    Returns:
-        A `Schema` object.
-    """
-    def _to(value):
-        if isinstance(value, dict):
-            d = {}
-            for k, v in value.iteritems():
-                if isinstance(k, basestring):
-                    k = Schema(k) if required else Optional(k)
-                d[k] = _to(v)
-            if allow_custom_keys:
-                d[Optional(basestring)] = (Expand()
-                                           if inject_expansion else object)
-            schema = Schema(d)
-        else:
-            if type(value) is type and issubclass(value, Setting):
-                schema = value.schema
-            else:
-                schema = value
-            if inject_expansion:
-                schema = And(schema, Expand())
-        return schema
-
-    return _to(config_dict)
-
-
 # -----------------------------------------------------------------------------
 # Config
 # -----------------------------------------------------------------------------
 
-class Config(DataWrapper):
+class Config(object):
     """Rez configuration settings.
 
     You should call the `create_config` function, rather than constructing a
@@ -330,6 +321,7 @@ class Config(DataWrapper):
     files update the master configuration to create the final config. See the
     comments at the top of 'rezconfig' for more details.
     """
+    __metaclass__ = LazyAttributeMeta
     schema = config_schema
     schema_error = ConfigurationError
 
@@ -344,8 +336,13 @@ class Config(DataWrapper):
                 ignored.
         """
         self.filepaths = filepaths
+        self._sourced_filepaths = None
         self.overrides = overrides or {}
         self.locked = locked
+
+    def get(self, key, default=None):
+        """Get the value of a setting."""
+        return getattr(self, key, default)
 
     def override(self, key, value):
         """Set a setting to the given value.
@@ -360,7 +357,7 @@ class Config(DataWrapper):
             self.plugins.override(keys[1:], value)
         else:
             self.overrides[key] = value
-            propertycache.uncache(self, key)
+            self._uncache(key)
 
     def remove_override(self, key):
         """Remove a setting override, if one exists."""
@@ -369,7 +366,7 @@ class Config(DataWrapper):
             raise NotImplementedError
         elif key in self.overrides:
             del self.overrides[key]
-            propertycache.uncache(self, key)
+            self._uncache(key)
 
     def warn(self, key):
         """Returns True if the warning setting is enabled."""
@@ -381,7 +378,28 @@ class Config(DataWrapper):
         return (not self.quiet and not self.debug_none and
                 (self.debug_all or getattr(self, "debug_%s" % key)))
 
-    @propertycache
+    def debug_printer(self, key):
+        """Returns a printer object suitably enabled based on the given key."""
+        enabled = self.debug(key)
+        return get_debug_printer(enabled)
+
+    @cached_property
+    def sourced_filepaths(self):
+        """Get the list of files actually sourced to create the config.
+
+        Note:
+            `self.filepaths` refers to the filepaths used to search for the
+            configs, which does dot necessarily match the files used. For example,
+            some files may not exist, while others are chosen as rezconfig.py in
+            preference to rezconfig, rezconfig.yaml.
+
+        Returns:
+            List of str: The sourced files.
+        """
+        _ = self._data  # force a config load
+        return self._sourced_filepaths
+
+    @cached_property
     def plugins(self):
         """Plugin settings are loaded lazily, to avoid loading the plugins
         until necessary."""
@@ -399,7 +417,10 @@ class Config(DataWrapper):
             if key == "plugins":
                 d[key] = self.plugins.data()
             else:
-                d[key] = getattr(self, key)
+                try:
+                    d[key] = getattr(self, key)
+                except AttributeError:
+                    pass  # unknown key, just leave it unchanged
         return d
 
     @property
@@ -410,20 +431,9 @@ class Config(DataWrapper):
             paths.remove(self.local_packages_path)
         return paths
 
-    # use as decorator
-    def lru_cache(self, key, maxsize_key=None):
-        def decorated(f):
-            if self.get(key):
-                maxsize = self.get(maxsize_key) if maxsize_key else -1
-                maxsize = None if maxsize == -1 else maxsize
-                return lru_cache(maxsize)(f)
-            else:
-                return f
-        return decorated
-
     def get_completions(self, prefix):
         def _get_plugin_completions(prefix_):
-            from rez.util import get_object_completions
+            from rez.utils.data_utils import get_object_completions
             words = get_object_completions(
                 instance=self.plugins,
                 prefix=prefix_,
@@ -444,6 +454,12 @@ class Config(DataWrapper):
                 keys += _get_plugin_completions('')
             return keys
 
+    def _uncache(self, key):
+        # deleting the attribute falls up back to the class attribute, which is
+        # the cached_property descriptor
+        if hasattr(self, key):
+            delattr(self, key)
+
     def _swap(self, other):
         """Swap this config with another.
 
@@ -460,13 +476,9 @@ class Config(DataWrapper):
             key_schema = Schema(key_schema)
         return key_schema.validate(value)
 
-    @propertycache
+    @cached_property
     def _data(self):
-        data = {}
-        for filepath in self.filepaths:
-            data_ = _load_config_yaml(filepath)
-            deep_update(data, data_)
-
+        data, self._sourced_filepaths = _load_config_from_filepaths(self.filepaths)
         deep_update(data, self.overrides)
         return data
 
@@ -475,13 +487,13 @@ class Config(DataWrapper):
         """See comment block at top of 'rezconfig' describing how the main
         config is assembled."""
         filepaths = []
-        filepaths.append(os.path.join(module_root_path, "rezconfig"))
+        filepaths.append(get_module_root_config())
         filepath = os.getenv("REZ_CONFIG_FILE")
-        if filepath and os.path.isfile(filepath):
-            filepaths.append(filepath)
+        filepaths.append(filepath)
+
         filepath = os.path.expanduser("~/.rezconfig")
-        if os.path.isfile(filepath):
-            filepaths.append(filepath)
+        filepaths.append(filepath)
+
         return Config(filepaths, overrides)
 
     def __str__(self):
@@ -494,20 +506,28 @@ class Config(DataWrapper):
     # -- dynamic defaults
 
     def _get_tmpdir(self):
-        from rez.platform_ import platform_
+        from rez.utils.platform_ import platform_
         return platform_.tmpdir
 
     def _get_image_viewer(self):
-        from rez.platform_ import platform_
+        from rez.utils.platform_ import platform_
         return platform_.image_viewer
 
     def _get_editor(self):
-        from rez.platform_ import platform_
+        from rez.utils.platform_ import platform_
         return platform_.editor
 
-    def _get_diff_tool(self):
-        from rez.platform_ import platform_
-        return platform_.diff_tool
+    def _get_difftool(self):
+        from rez.utils.platform_ import platform_
+        return platform_.difftool
+
+    def _get_terminal_emulator_command(self):
+        from rez.utils.platform_ import platform_
+        return platform_.terminal_emulator_command
+
+    def _get_new_session_popen_args(self):
+        from rez.utils.platform_ import platform_
+        return platform_.new_session_popen_args
 
 
 class _PluginConfigs(object):
@@ -596,6 +616,22 @@ class _PluginConfigs(object):
         return "%s(%s)" % (self.__class__.__name__, str(self))
 
 
+def expand_system_vars(data):
+    """Expands any strings within `data` such as '{system.user}'."""
+    def _expanded(value):
+        if isinstance(value, basestring):
+            value = expandvars(value)
+            value = expanduser(value)
+            return scoped_format(value, system=system)
+        elif isinstance(value, (list, tuple, set)):
+            return [_expanded(x) for x in value]
+        elif isinstance(value, dict):
+            return dict((k, _expanded(v)) for k, v in value.iteritems())
+        else:
+            return value
+    return _expanded(data)
+
+
 def create_config(overrides=None):
     """Create a configuration that reads config files from standard locations.
     """
@@ -616,8 +652,28 @@ def _create_locked_config(overrides=None):
     Returns:
         `Config` object.
     """
-    filepath = os.path.join(module_root_path, "rezconfig")
-    return Config([filepath], overrides=overrides, locked=True)
+    return Config([get_module_root_config()], overrides=overrides, locked=True)
+
+
+@lru_cache()
+def _load_config_py(filepath):
+    from rez.vendor.six.six import exec_
+
+    globs = dict(rez_version=__version__)
+    result = {}
+
+    with open(filepath) as f:
+        try:
+            code = compile(f.read(), filepath, 'exec')
+            exec_(code, _globs_=globs)
+        except Exception, e:
+            raise ConfigurationError("Error loading configuration from %s: %s"
+                                     % (filepath, str(e)))
+
+    for k, v in globs.iteritems():
+        if k != '__builtins__' and not ismodule(v):
+            result[k] = v
+    return result
 
 
 @lru_cache()
@@ -625,10 +681,44 @@ def _load_config_yaml(filepath):
     with open(filepath) as f:
         content = f.read()
     try:
-        return yaml.load(content) or {}
+        doc = yaml.load(content) or {}
     except YAMLError as e:
         raise ConfigurationError("Error loading configuration from %s: %s"
                                  % (filepath, str(e)))
+
+    if not isinstance(doc, dict):
+        raise ConfigurationError("Error loading configuration from %s: Expected "
+                                 "dict, got %s" % (filepath, type(doc).__name__))
+    return doc
+
+
+def _load_config_from_filepaths(filepaths):
+    data = {}
+    sourced_filepaths = []
+    loaders = ((".py", _load_config_py),
+               ("", _load_config_yaml))
+
+    for filepath in filepaths:
+        for extension, loader in loaders:
+            if extension:
+                no_ext = os.path.splitext(filepath)[0]
+                filepath_with_ext = no_ext + extension
+            else:
+                filepath_with_ext = filepath
+
+            if not os.path.isfile(filepath_with_ext):
+                continue
+
+            data_ = loader(filepath_with_ext)
+            deep_update(data, data_)
+            sourced_filepaths.append(filepath_with_ext)
+            break
+
+    return data, sourced_filepaths
+
+
+def get_module_root_config():
+    return os.path.join(module_root_path, "rezconfig.py")
 
 
 # singleton

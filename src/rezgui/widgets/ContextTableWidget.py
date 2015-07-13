@@ -7,7 +7,7 @@ from rezgui.widgets.IconButton import IconButton
 from rezgui.mixins.ContextViewMixin import ContextViewMixin
 from rezgui.models.ContextModel import ContextModel
 from rezgui.objects.App import app
-from rez.packages import iter_packages
+from rez.packages_ import iter_packages
 from rez.vendor.version.requirement import Requirement
 from rez.vendor.version.version import VersionRange
 from functools import partial
@@ -32,7 +32,7 @@ class CompareCell(QtGui.QWidget):
         if self.left_variant and self.right_variant:
             self.side = "both"
             equal_versions = (self.left_variant.version == self.right_variant.version)
-            right_variant_visible = (self.right_variant.search_path in package_paths)
+            right_variant_visible = (self.right_variant.wrapped.location in package_paths)
             self.comparable = right_variant_visible and not equal_versions
 
             if self.comparable:
@@ -41,7 +41,7 @@ class CompareCell(QtGui.QWidget):
                                    self.right_variant.version])
                 range_ = VersionRange.as_span(*versions)
                 it = iter_packages(name=self.left_variant.name,
-                                   paths=package_paths, range=range_)
+                                   paths=package_paths, range_=range_)
                 diff_num = sum(1 for x in it) - 1
 
                 unit = "version" if diff_num == 1 else "versions"
@@ -99,9 +99,6 @@ class CompareCell(QtGui.QWidget):
         return (self.side in ("right", "both"))
 
     def _clicked(self):
-        def _var_str(var):
-            return "%s@%s" % (var.qualified_package_name, var.search_path)
-
         if self.comparable:
             from rezgui.dialogs.VariantVersionsDialog import VariantVersionsDialog
             dlg = VariantVersionsDialog(self.context_model, self.left_variant,
@@ -120,7 +117,7 @@ class CompareCell(QtGui.QWidget):
                 "The package in the current resolve:\n(%s)\n\nis the same "
                 "version as the package in the reference resolve:\n(%s)\n\n"
                 "but is a different package."
-                % (_var_str(self.left_variant), _var_str(self.right_variant)))
+                % (self.left_variant.uri, self.right_variant.uri))
         elif self.mode == "missing":
             QtGui.QMessageBox.information(
                 self,
@@ -137,14 +134,14 @@ class CompareCell(QtGui.QWidget):
                 "Newer Package",
                 "The package in the current resolve:\n(%s)\n\nis newer than "
                 "the package in the reference resolve (%s)"
-                % (_var_str(self.left_variant), _var_str(self.right_variant)))
+                % (self.left_variant.uri, self.right_variant.uri))
         else:
             QtGui.QMessageBox.information(
                 self,
                 "Older Package",
                 "The package in the current resolve:\n(%s)\n\nis older than "
                 "the package in the reference resolve (%s)"
-                % (_var_str(self.left_variant), _var_str(self.right_variant)))
+                % (self.left_variant.uri, self.right_variant.uri))
 
     def _set_color(self, *c):
         f = 0.8

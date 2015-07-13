@@ -1,5 +1,6 @@
-from rez.util import print_warning
-from rez.packages import load_developer_package
+from rez.utils.logging_ import print_warning
+from rez.packages_ import get_developer_package
+from rez.vendor.enum import Enum
 
 
 def get_release_hook_types():
@@ -46,13 +47,13 @@ class ReleaseHook(object):
             source_path: Path containing source that was released.
         """
         self.source_path = source_path
-        self.package = load_developer_package(source_path)
+        self.package = get_developer_package(source_path)
         self.type_settings = self.package.config.plugins.release_hook
         self.settings = self.type_settings.get(self.name())
 
     def pre_build(self, user, install_path, release_message=None,
                   changelog=None, previous_version=None,
-                  previous_revision=None):
+                  previous_revision=None, **kwargs):
         """Pre-build hook.
 
         Args:
@@ -62,19 +63,22 @@ class ReleaseHook(object):
             changelog: List of strings describing changes since last release.
             previous_version: Version object - previously-release package, or
                 None if no previous release.
-            previous_revision: Revision of previously-releaved package (type
+            previous_revision: Revision of previously-released package (type
                 depends on repo - see ReleaseVCS.get_current_revision().
+            kwargs: Reserved.
 
         Note:
-            This method should raise a `ReleaseError` if the release process
-            should be cancelled.
+            This method should raise a `ReleaseHookCancellingError` if the
+            release process should be cancelled.
         """
         pass
 
     def pre_release(self, user, install_path, release_message=None,
                     changelog=None, previous_version=None,
-                    previous_revision=None):
+                    previous_revision=None, **kwargs):
         """Pre-release hook.
+
+        This is called before any package variants are released.
 
         Args:
             user: Name of person who did the release.
@@ -85,26 +89,43 @@ class ReleaseHook(object):
                 None if no previous release.
             previous_revision: Revision of previously-releaved package (type
                 depends on repo - see ReleaseVCS.get_current_revision().
+            kwargs: Reserved.
 
         Note:
-            This method should raise a `ReleaseError` if the release process
-            should be cancelled.
+            This method should raise a `ReleaseHookCancellingError` if the
+            release process should be cancelled.
         """
         pass
 
-    def post_release(self, user, install_path, release_message=None,
+    def post_release(self, user, install_path, variants, release_message=None,
                      changelog=None, previous_version=None,
-                     previous_revision=None):
+                     previous_revision=None, **kwargs):
         """Post-release hook.
+
+        This is called after all package variants have been released.
 
         Args:
             user: Name of person who did the release.
             install_path: Directory the package was installed into.
+            variants (list of `Variant`): The variants that have been released.
             release_message: User-supplied release message.
             changelog: List of strings describing changes since last release.
             previous_version: Version of previously-release package, None if
                 no previous release.
             previous_revision: Revision of previously-releaved package (type
                 depends on repo - see ReleaseVCS.get_current_revision().
+            kwargs: Reserved.
         """
         pass
+
+
+class ReleaseHookEvent(Enum):
+    """Enum to help manage release hooks."""
+    pre_build = ("pre-build", "build", "pre_build")
+    pre_release = ("pre-release", "release", "pre_release")
+    post_release = ("post-release", "release", "post_release")
+
+    def __init__(self, label, noun, func_name):
+        self.label = label
+        self.noun = noun
+        self.func_name = func_name

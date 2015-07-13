@@ -2,9 +2,9 @@
 The main command-line entry point.
 """
 import sys
-from importlib import import_module
 from rez.vendor.argparse import _StoreTrueAction, SUPPRESS
 from rez.cli._util import subcommands, LazyArgumentParser, _env_var_true
+from rez.exceptions import RezError, RezSystemError
 from rez import __version__
 
 
@@ -51,28 +51,28 @@ def _add_common_args(parser):
                         help="verbose mode, repeat for more verbosity")
     parser.add_argument("--debug", dest="debug", action="store_true",
                         help=SUPPRESS)
+    parser.add_argument("--profile", dest="profile", type=str,
+                        help=SUPPRESS)
 
 
 class InfoAction(_StoreTrueAction):
     def __call__(self, parser, args, values, option_string=None):
+        from rez.system import system
+        txt = system.get_summary_string()
         print
-        print "Rez %s" % __version__
-        print
-        from rez.plugin_managers import plugin_manager
-        print plugin_manager.get_summary_string()
+        print txt
         print
         sys.exit(0)
 
 
-def run(command=None, namespace="rez"):
-    parser = LazyArgumentParser(namespace)
-    
-    # top-level-only arguments
-    module = import_module("rez.cli.%s_cli" % namespace)
-    fn = getattr(module, "add_top_level_arguments", None)
-    if fn:
-        fn(parser)
-        
+def run(command=None):
+    parser = LazyArgumentParser("rez")
+
+    parser.add_argument("-i", "--info", action=InfoAction,
+                        help="print information about rez and exit")
+    parser.add_argument("-V", "--version", action="version",
+                        version="Rez %s" % __version__)
+
     # add args common to all subcommands... we add them both to the top parser,
     # AND to the subparsers, for two reasons:
     #  1) this allows us to do EITHER "rez --debug build" OR
@@ -81,12 +81,10 @@ def run(command=None, namespace="rez"):
     #     "rez-build" - ie, this will work: "rez-build --debug"
     _add_common_args(parser)
 
-    subcommands_ = subcommands[namespace][0]
-
     # add lazy subparsers
     subparser = parser.add_subparsers(dest='cmd', metavar='COMMAND')
-    for subcommand in subcommands_:
-        module_name = "rez.cli.%s_cli.%s" % (namespace, subcommand)
+    for subcommand in subcommands:
+        module_name = "rez.cli.%s" % subcommand
         subparser.add_parser(
             subcommand,
             help='',  # required so that it can be setup later
@@ -103,20 +101,26 @@ def run(command=None, namespace="rez"):
     opts = parser.parse_args(arg_groups[0])
 
     if opts.debug or _env_var_true("REZ_DEBUG"):
-        from rez.util import set_rm_tmpdirs
-        set_rm_tmpdirs(False)
         exc_type = None
     else:
-        exc_type = Exception
+        exc_type = RezError
 
-    try:
-        returncode = opts.func(opts, opts.parser, arg_groups[1:])
-    except NotImplementedError as e:
-        import traceback
-        raise Exception(traceback.format_exc())
-    except exc_type as e:
-        print >> sys.stderr, "rez: %s: %s" % (e.__class__.__name__, str(e))
-        sys.exit(1)
+    def run_cmd():
+        return opts.func(opts, opts.parser, arg_groups[1:])
+
+    if opts.profile:
+        import cProfile
+        cProfile.runctx("run_cmd()", globals(), locals(), filename=opts.profile)
+        returncode = 0
+    else:
+        try:
+            returncode = run_cmd()
+        except (NotImplementedError, RezSystemError) as e:
+            import traceback
+            raise Exception(traceback.format_exc())
+        except exc_type as e:
+            print >> sys.stderr, "rez: %s: %s" % (e.__class__.__name__, str(e))
+            sys.exit(1)
 
     sys.exit(returncode or 0)
 

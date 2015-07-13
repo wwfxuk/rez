@@ -1,13 +1,12 @@
 """
-Built-in simple python build system.
+Built-in simple python build system
 """
 from rez.build_system import BuildSystem
-from rez.build_process import BuildType
+from rez.build_process_ import BuildType
 from rez.util import create_forwarding_script
 from rez.resolved_context import ResolvedContext
-from rez.packages import Package
 from rez.config import config
-from rez.yaml import dump_yaml
+from rez.utils.yaml import dump_yaml
 import os.path
 import sys
 
@@ -24,17 +23,6 @@ class BezBuildSystem(BuildSystem):
     build environment. If you have a specific interpreter you want to use, it
     needs to be available as a rez python package, and you should list it as a
     private build requirement in your package.
-
-    The function signature of 'build' is as follows:
-
-    build(source_path, build_path, install_path, targets):
-        Args:
-            source_path (str): Path containing the project;
-            build_path (str): Path to store build files;
-            install_path (str): Path to install targets to, if install is True;
-            targets (list of str): List of targets to build, assume build all if
-                None. Your build code should recognise 'install' as a special
-                build target, meaning to install the entire build.
     """
     @classmethod
     def name(cls):
@@ -53,7 +41,7 @@ class BezBuildSystem(BuildSystem):
                                              build_args=build_args,
                                              child_build_args=child_build_args)
 
-    def build(self, context, build_path, install_path, install=False,
+    def build(self, context, variant, build_path, install_path, install=False,
               build_type=BuildType.local):
         # communicate args to bez by placing in a file
         doc = dict(
@@ -95,7 +83,6 @@ class BezBuildSystem(BuildSystem):
 def _FWD__spawn_build_shell(working_dir, build_dir):
     # This spawns a shell that the user can run 'bez' in directly
     context = ResolvedContext.load(os.path.join(build_dir, "build.rxt"))
-    _ = Package(working_dir)  # TODO not sure if this is needed
     config.override("prompt", "BUILD>")
 
     retcode, _, _ = context.execute_shell(block=True, cwd=build_dir)

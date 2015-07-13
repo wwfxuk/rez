@@ -524,7 +524,8 @@ class _VersionRangeParser(object):
             match = re.search(self.regex, part)
 
             if not match:
-                raise ParseException("Syntax error in version range '%s'" % part)
+                raise ParseException("Syntax error in version range '%s'"
+                                     % part)
 
             self._groups = match.groupdict()
             if self._groups['version']:

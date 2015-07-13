@@ -1,12 +1,12 @@
-from rez.util import propertycache, create_forwarding_script, columnise
+from rez.util import create_forwarding_script
 from rez.exceptions import SuiteError, ResolvedContextError
 from rez.resolved_context import ResolvedContext
-from rez.colorize import warning, critical, Printer
-from rez.colorize import alias as alias_col
+from rez.utils.data_utils import cached_property
+from rez.utils.formatting import columnise, PackageRequest
+from rez.utils.colorize import warning, critical, Printer, alias as alias_col
 from rez.vendor import yaml
 from rez.vendor.yaml.error import YAMLError
-from rez.vendor.version.requirement import Requirement
-from rez.yaml import dump_yaml
+from rez.utils.yaml import dump_yaml
 from collections import defaultdict
 import os
 import os.path
@@ -54,7 +54,7 @@ class Suite(object):
         """
         return self.contexts.keys()
 
-    @propertycache
+    @cached_property
     def tools_path(self):
         """Get the path that should be added to $PATH to expose this suite's
         tools.
@@ -144,7 +144,7 @@ class Suite(object):
 
         if in_resolve:
             if isinstance(in_resolve, basestring):
-                in_resolve = Requirement(in_resolve)
+                in_resolve = PackageRequest(in_resolve)
 
             def _in_resolve(name):
                 context = self.context(name)
@@ -196,12 +196,12 @@ class Suite(object):
         """Set a context's suffix.
 
         This will be applied to all wrappers for the tools in this context. For
-        example, a tool called 'foo' would appear as 'foo<prefix>' in the
+        example, a tool called 'foo' would appear as 'foo<suffix>' in the
         suite's bin path.
 
         Args:
-            name (str): Name of the context to prefix.
-            prefix (str): Prefix to apply to tools.
+            name (str): Name of the context to suffix.
+            suffix (str): Suffix to apply to tools.
         """
         data = self._context(name)
         data["suffix"] = suffix

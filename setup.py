@@ -33,7 +33,7 @@ def find_files(pattern, path=None, root="rez"):
 
 
 # get version from source
-with open("src/rez/_version.py") as f:
+with open("src/rez/utils/_version.py") as f:
     code = f.read().strip()
 _rez_version = None  # just to keep linting happy
 exec(code)  # inits _rez_version
@@ -54,17 +54,16 @@ scripts = [
     "rez-selftest",
     "rez-bind",
     "rez-search",
+    "rez-view",
     "rez-status",
     "rez-help",
     "rez-depends",
+    "rez-memcache",
+    "rez-yaml2py",
+    "bez",
     "_rez_fwd",  # TODO rename this _rez-forward for consistency
     "_rez-complete",
-    # simple builtin python build system
-    "bez",
-    # rez gui
-    "rez-gui",
-    # rez software manager
-    "soma"
+    "rez-gui"
 ]
 
 
@@ -82,13 +81,14 @@ setup(
     license="LGPL",
     scripts=[os.path.join('bin', x) for x in scripts],
     include_package_data=True,
+    zip_safe=False,
     package_dir = {'': 'src'},
     packages=find_packages('src', exclude=["build_utils",
                                            "build_utils.*",
                                            "tests"]),
     package_data = {
         'rez':
-            ['rezconfig', 'logging.conf'] +
+            ['rezconfig', 'utils/logging.conf'] +
             ['README*'] +
             find_files('*.*', 'completion') +
             find_files('*.*', 'tests/data'),

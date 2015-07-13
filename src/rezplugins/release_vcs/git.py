@@ -2,8 +2,10 @@
 Git version control
 """
 from rez.release_vcs import ReleaseVCS
-from rez.util import print_error, print_warning, print_debug
+from rez.utils.logging_ import print_error, print_warning, print_debug
 from rez.exceptions import ReleaseVCSError
+from rez.vendor.sh.sh import git
+from shutil import rmtree
 import functools
 import os.path
 import re
@@ -184,15 +186,13 @@ class GitReleaseVCS(ReleaseVCS):
     def create_release_tag(self, tag_name, message=None):
         # check if tag already exists
         tags = self.git("tag")
-        if tag_name in tags:
-            print_warning("Skipped tag creation, tag '%s' already exists" % tag_name)
+        if tag_name in tags:  # already exists
             return
 
         # create tag
         print "Creating tag '%s'..." % tag_name
         args = ["tag", "-a", tag_name]
-        if message:
-            args += ["-m", message]
+        args += ["-m", message or '']
         self.git(*args)
 
         # push tag
@@ -203,6 +203,19 @@ class GitReleaseVCS(ReleaseVCS):
         remote_uri = '/'.join((remote, remote_branch))
         print "Pushing tag '%s' to %s..." % (tag_name, remote_uri)
         self.git("push", remote, tag_name)
+
+    @classmethod
+    def export(cls, revision, path):
+        url = revision["fetch_url"]
+        commit = revision["commit"]
+        path_, dirname = os.path.split(path)
+        gitdir = os.path.join(path, ".git")
+
+        os.chdir(path_)
+        git.clone(url, dirname)
+        os.chdir(path)
+        git.checkout(commit)
+        rmtree(gitdir)
 
 
 def register_plugin():

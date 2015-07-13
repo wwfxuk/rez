@@ -1,9 +1,12 @@
 """
 Manages loading of all types of Rez plugins.
 """
-from rez.config import config, _to_schema
-from rez.util import LazySingleton, propertycache, deep_update, columnise, \
-    print_debug
+from rez.config import config, expand_system_vars, _load_config_from_filepaths
+from rez.utils.formatting import columnise
+from rez.util import deep_update
+from rez.utils.schema import dict_to_schema
+from rez.utils.data_utils import LazySingleton, cached_property
+from rez.utils.logging_ import print_debug, print_warning
 from rez.exceptions import RezPluginError
 import os.path
 
@@ -118,10 +121,21 @@ class RezPluginType(object):
                         if hasattr(module, 'register_plugin') and \
                                 hasattr(module.register_plugin, '__call__'):
                             plugin_class = module.register_plugin()
-                            self.register_plugin(plugin_name, plugin_class, module)
+                            if plugin_class != None:
+                                self.register_plugin(plugin_name, plugin_class, module)
+                            else:
+                                if config.debug("plugins"):
+                                    print_warning(
+                                        "'register_plugin' function at %s: %s did not return a class."
+                                        % (path, modname))
                         else:
+                            if config.debug("plugins"):
+                                print_warning(
+                                    "no 'register_plugin' function at %s: %s"
+                                    % (path, modname))
+
                             # delete from sys.modules?
-                            pass
+
                     except Exception as e:
                         nameish = modname.split('.')[-1]
                         self.failed_plugins[nameish] = str(e)
@@ -133,11 +147,8 @@ class RezPluginType(object):
                             print_debug(out.getvalue())
 
             # load config
-            configfile = os.path.join(path, "rezconfig")
-            if os.path.exists(configfile):
-                from rez.config import _load_config_yaml
-                data = _load_config_yaml(configfile)
-                deep_update(self.config_data, data)
+            data, _ = _load_config_from_filepaths([os.path.join(path, "rezconfig")])
+            deep_update(self.config_data, data)
 
     def get_plugin_class(self, plugin_name):
         """Returns the class registered under the given plugin name."""
@@ -155,7 +166,7 @@ class RezPluginType(object):
             raise RezPluginError("Unrecognised %s plugin: '%s'"
                                  % (self.pretty_type_name, plugin_name))
 
-    @propertycache
+    @cached_property
     def config_schema(self):
         """Returns the merged configuration data schema for this plugin
         type."""
@@ -167,7 +178,7 @@ class RezPluginType(object):
                     and plugin_class.schema_dict:
                 d_ = {name: plugin_class.schema_dict}
                 deep_update(d, d_)
-        return _to_schema(d, required=True)
+        return dict_to_schema(d, required=True, modifier=expand_system_vars)
 
     def create_instance(self, plugin, **instance_kwargs):
         """Create and return an instance of the given plugin."""
@@ -175,8 +186,7 @@ class RezPluginType(object):
 
 
 class RezPluginManager(object):
-    """
-    Primary interface for working with registered plugins.
+    """Primary interface for working with registered plugins.
 
     Custom plugins are organized under a python package named 'rezplugins'.
     The direct sub-packages of 'rezplugins' are the plugin types supported by
@@ -224,8 +234,7 @@ class RezPluginManager(object):
         All 'rezplugin' packages found on the search path will all be merged
         into a single python package.
 
-        ..note::
-
+        Note:
             Even though 'rezplugins' is a python package, your sparse copy of
             it should  not be on the `PYTHONPATH`, just the `REZ_PLUGIN_PATH`.
             This is important  because it ensures that rez's copy of
@@ -341,9 +350,24 @@ class BuildSystemPluginType(RezPluginType):
     type_name = "build_system"
 
 
+class PackageRepositoryPluginType(RezPluginType):
+    """Support for different package repositories for loading packages.
+    """
+    type_name = "package_repository"
+
+
+class BuildProcessPluginType(RezPluginType):
+    """Support for different build and release processes.
+    """
+    type_name = "build_process"
+
+
 plugin_manager = RezPluginManager()
+
 
 plugin_manager.register_plugin_type(ShellPluginType)
 plugin_manager.register_plugin_type(ReleaseVCSPluginType)
 plugin_manager.register_plugin_type(ReleaseHookPluginType)
 plugin_manager.register_plugin_type(BuildSystemPluginType)
+plugin_manager.register_plugin_type(PackageRepositoryPluginType)
+plugin_manager.register_plugin_type(BuildProcessPluginType)

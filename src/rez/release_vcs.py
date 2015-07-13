@@ -1,6 +1,7 @@
 from rez.exceptions import ReleaseVCSError
-from rez.packages import load_developer_package
-from rez.util import which, print_debug
+from rez.packages_ import get_developer_package
+from rez.util import which
+from rez.utils.logging_ import print_debug
 import subprocess
 
 
@@ -16,8 +17,7 @@ def create_release_vcs(path, vcs_name=None):
     vcs_types = get_release_vcs_types()
     if vcs_name:
         if vcs_name not in vcs_types:
-            raise ReleaseVCSError("Unknown version control system: %r"
-                                  % vcs_name)
+            raise ReleaseVCSError("Unknown version control system: %r" % vcs_name)
         cls = plugin_manager.get_plugin_class('release_vcs', vcs_name)
         return cls(path)
 
@@ -33,8 +33,7 @@ def create_release_vcs(path, vcs_name=None):
                               "choose." % (path, clss_str))
     elif not clss:
         raise ReleaseVCSError("No version control system for package "
-                              "releasing is associated with the path %s"
-                              % path)
+                              "releasing is associated with the path %s" % path)
     else:
         return clss[0](path)
 
@@ -45,7 +44,7 @@ class ReleaseVCS(object):
     def __init__(self, path):
         assert(self.is_valid_root(path))
         self.path = path
-        self.package = load_developer_package(path)
+        self.package = get_developer_package(path)
         self.type_settings = self.package.config.plugins.release_vcs
         self.settings = self.type_settings.get(self.name())
 
@@ -74,6 +73,11 @@ class ReleaseVCS(object):
     def get_current_revision(self):
         """Get the current revision, this can be any type (str, dict etc)
         appropriate to your VCS implementation.
+
+        Note:
+            You must ensure that a revision contains enough information to
+            clone/export/checkout the repo elsewhere - otherwise you will not
+            be able to implement `export`.
         """
         raise NotImplementedError
 
@@ -103,6 +107,20 @@ class ReleaseVCS(object):
         Args:
             tag_name (str): Tag name to write to the repo.
             message (str): Message string to associate with the release.
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def export(cls, revision, path):
+        """Export the repository to the given path at the given revision.
+
+        Note:
+            The directory at `path` must not exist, but the parent directory
+            must exist.
+
+        Args:
+            revision (object): Revision to export; current revision if None.
+            path (str): Directory to export the repository to.
         """
         raise NotImplementedError
 

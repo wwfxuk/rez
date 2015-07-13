@@ -12,7 +12,8 @@ class VersionedObject(_Common):
     Note that '-', '@' or '#' can be used as the seperator between object name
     and version, however this is purely cosmetic - "foo-1" is the same as "foo@1".
     """
-    sep_regex = re.compile(r'[-@#]')
+    sep_regex_str = r'[-@#]'
+    sep_regex = re.compile(sep_regex_str)
 
     def __init__(self, s):
         self.name_ = None
@@ -73,7 +74,17 @@ class VersionedObject(_Common):
 
 
 class Requirement(_Common):
-    """Requirement for a versioned object, eg 'foo-1.5+<2', '!bah-5', 'foo==1.2'.
+    """Requirement for a versioned object.
+
+    Examples of valid requirement strings:
+
+        foo-1.0
+        foo@1.0
+        foo#1.0
+        foo-1+
+        foo-1+<4.3
+        foo<3
+        foo==1.0.1
 
     Defines a requirement for an object. For example, "foo-5+" means that you
     require any version of "foo", version 5 or greater. An unversioned
@@ -178,24 +189,29 @@ class Requirement(_Common):
         """Return a string representation that is safe for the current filesystem,
         and guarantees that no two different Requirement objects will encode to
         the same value."""
-        import platform
-        if platform.system() == "Windows":
-            raise NotImplemented
-        else:
-            return str(self)
+        return str(self)
 
     def conflicts_with(self, other):
-        """Returns True if this requirement conflicts with another."""
-        if (self.name_ != other.name_) or (self.range is None) \
-                or (other.range is None):
-            return False
-        elif self.conflict:
-            return False if other.conflict \
-                else self.range_.issuperset(other.range_)
-        elif other.conflict:
-            return other.range_.issuperset(self.range_)
-        else:
-            return not self.range_.intersects(other.range_)
+        """Returns True if this requirement conflicts with another `Requirement`
+        or `VersionedObject`."""
+        if isinstance(other, Requirement):
+            if (self.name_ != other.name_) or (self.range is None) \
+                    or (other.range is None):
+                return False
+            elif self.conflict:
+                return False if other.conflict \
+                    else self.range_.issuperset(other.range_)
+            elif other.conflict:
+                return other.range_.issuperset(self.range_)
+            else:
+                return not self.range_.intersects(other.range_)
+        else:  # VersionedObject
+            if (self.name_ != other.name_) or (self.range is None):
+                return False
+            if self.conflict:
+                return (other.version_ in self.range_)
+            else:
+                return (other.version_ not in self.range_)
 
     def merged(self, other):
         """Returns the merged result of two requirements.
@@ -351,6 +367,10 @@ class RequirementList(_Common):
     def conflict_names(self):
         """Set of conflict requirement names."""
         return self.conflict_names_
+
+    def __iter__(self):
+        for requirement in self.requirements_:
+            yield requirement
 
     def get(self, name):
         """Returns the Requirement for the given object, or None.

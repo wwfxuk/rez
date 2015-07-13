@@ -5,15 +5,21 @@ import pipes
 import os.path
 import subprocess
 from rez.config import config
-from rez.shells import UnixShell
+from rez.utils.platform_ import platform_
+from rez.utils.data_utils import cached_class_property
+from rez.shells import Shell, UnixShell
+from rez.rex import EscapedString
 
 
 class CSH(UnixShell):
-    executable = UnixShell.find_executable('csh')
     norc_arg = '-f'
     last_command_status = '$status'
     histfile = "~/.history"
     histvar = "histfile"
+
+    @cached_class_property
+    def executable(cls):
+        return Shell.find_executable('csh')
 
     @classmethod
     def name(cls):
@@ -81,46 +87,58 @@ class CSH(UnixShell):
             source_bind_files=(not norc)
         )
 
+    def escape_string(self, value):
+        value = EscapedString.promote(value)
+        value = value.expanduser()
+        result = ''
+
+        for is_literal, txt in value.strings:
+            if is_literal:
+                txt = pipes.quote(txt)
+                if not txt.startswith("'"):
+                    txt = "'%s'" % txt
+            else:
+                txt = txt.replace('"', '"\\""')
+                txt = txt.replace('!', '\\!')
+                txt = '"%s"' % txt
+            result += txt
+        return result
+
     def _bind_interactive_rez(self):
-        if config.prompt:
-            stored_prompt = os.getenv("$REZ_STORED_PROMPT")
-            curr_prompt = stored_prompt or os.getenv("$prompt", "[%m %c]%# ")
+        if config.set_prompt and self.settings.prompt:
+            # TODO: Do more like in sh.py, much less error prone
+            stored_prompt = os.getenv("REZ_STORED_PROMPT")
+            curr_prompt = stored_prompt or os.getenv("prompt", "[%m %c]%# ")
             if not stored_prompt:
                 self.setenv("REZ_STORED_PROMPT", '"%s"' % curr_prompt)
 
             new_prompt = "$REZ_ENV_PROMPT"
             new_prompt = (new_prompt + " %s") if config.prefix_prompt \
                 else ("%s " + new_prompt)
-            new_prompt = new_prompt % curr_prompt
-            self._addline('set prompt="%s"' % new_prompt)
 
-    def _escape_string(self, value):
-        value = value.replace('"', '"\\""')
-        return '"%s"' % value
+            new_prompt = new_prompt % curr_prompt
+            new_prompt = self.escape_string(new_prompt)
+            self._addline('set prompt=%s' % new_prompt)
 
     def _saferefenv(self, key):
         self._addline("if (!($?%s)) setenv %s" % (key, key))
 
     def setenv(self, key, value):
+        value = self.escape_string(value)
         self._addline('setenv %s %s' % (key, value))
 
     def unsetenv(self, key):
         self._addline("unsetenv %s" % key)
 
     def alias(self, key, value):
-        if hasattr(value, "__iter__"):
-            value = ' '.join(map(pipes.quote, value))
-
-        self._addline('alias %s "%s";' % (key, value))
-
-    def unalias(self, key):
-        cmd = "unalias {key}"
-        self._addline(cmd.format(key=key))
+        value = EscapedString.disallow(value)
+        self._addline("alias %s '%s';" % (key, value))
 
     def source(self, value):
-        value = os.path.expanduser(value)
+        value = self.escape_string(value)
         self._addline('source %s' % value)
 
 
 def register_plugin():
-    return CSH
+    if platform_.name != "windows":
+        return CSH

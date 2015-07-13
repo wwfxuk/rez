@@ -1,5 +1,5 @@
 from rezgui.qt import QtGui
-from rez.util import readable_time_duration
+from rez.utils.formatting import readable_time_duration
 import os.path
 import time
 
@@ -74,7 +74,6 @@ def get_icon_widget(filename, tooltip=None):
     return icon_label
 
 
-# TODO put in rez.util
 def get_timestamp_str(timestamp):
     now = int(time.time())
     release_time = time.localtime(timestamp)

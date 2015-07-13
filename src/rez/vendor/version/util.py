@@ -5,7 +5,7 @@ class VersionError(Exception):
     pass
 
 
-class ParseException(VersionError):
+class ParseException(Exception):
     pass
 
 

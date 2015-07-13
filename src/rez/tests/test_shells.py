@@ -1,18 +1,16 @@
 """
-Test noninteractive invocation of each type of shell (bash etc), and ensure that
-their behaviour is correct wrt shell options such as --rcfile, -c, --stdin etc.
+test shell invocation
 """
-
 from rez.system import system
 from rez.shells import create_shell
 from rez.resolved_context import ResolvedContext
-from rez.rex import RexExecutor
+from rez.rex import RexExecutor, literal, expandable
 import rez.vendor.unittest2 as unittest
-from rez.vendor.sh import sh
 from rez.tests.util import TestBase, TempdirMixin, shell_dependent, \
     install_dependent
 from rez.util import which
 from rez.bind import hello_world
+from rez.utils.platform_ import platform_
 import subprocess
 import tempfile
 import inspect
@@ -37,9 +35,9 @@ class TestShells(TestBase, TempdirMixin):
 
         cls.settings = dict(
             packages_path=[packages_path],
+            package_filter=None,
             implicit_packages=[],
-            warn_untimestamped=False,
-            resolve_caching=False)
+            warn_untimestamped=False)
 
     @classmethod
     def tearDownClass(cls):
@@ -47,10 +45,15 @@ class TestShells(TestBase, TempdirMixin):
 
     @classmethod
     def _create_context(cls, pkgs):
+        from rez.config import config
         return ResolvedContext(pkgs, caching=False)
 
-    @shell_dependent
+    @shell_dependent(exclude=["cmd"])
     def test_no_output(self):
+        # TODO: issues with binding the 'hello_world' package means it is not
+        # possible to run this test on Windows.  The 'hello_world' executable
+        # is not registered correctly on Windows so always returned the
+        # incorrect error code.
         sh = create_shell()
         _, _, _, command = sh.startup_capabilities(command=True)
         if command:
@@ -64,8 +67,12 @@ class TestShells(TestBase, TempdirMixin):
                 "startup scripts are printing to stdout. Please remove the "
                 "printout and try again.")
 
-    @shell_dependent
+    @shell_dependent(exclude=["cmd"])
     def test_command(self):
+        # TODO: issues with binding the 'hello_world' package means it is not
+        # possible to run this test on Windows.  The 'hello_world' executable
+        # is not registered correctly on Windows so always returned the
+        # incorrect error code.
         sh = create_shell()
         _, _, _, command = sh.startup_capabilities(command=True)
 
@@ -75,8 +82,12 @@ class TestShells(TestBase, TempdirMixin):
                                 stdout=subprocess.PIPE)
             self.assertEqual(_stdout(p), "Hello Rez World!")
 
-    @shell_dependent
+    @shell_dependent(exclude=["cmd"])
     def test_command_returncode(self):
+        # TODO: issues with binding the 'hello_world' package means it is not
+        # possible to run this test on Windows.  The 'hello_world' executable
+        # is not registered correctly on Windows so always returned the
+        # incorrect error code.
         sh = create_shell()
         _, _, _, command = sh.startup_capabilities(command=True)
 
@@ -89,7 +100,7 @@ class TestShells(TestBase, TempdirMixin):
                 p.wait()
                 self.assertEqual(p.returncode, 66)
 
-    @shell_dependent
+    @shell_dependent()
     def test_norc(self):
         sh = create_shell()
         _, norc, _, command = sh.startup_capabilities(norc=True, command=True)
@@ -101,7 +112,7 @@ class TestShells(TestBase, TempdirMixin):
                                 stdout=subprocess.PIPE)
             self.assertEqual(_stdout(p), "Hello Rez World!")
 
-    @shell_dependent
+    @shell_dependent()
     def test_stdin(self):
         sh = create_shell()
         _, _, stdin, _ = sh.startup_capabilities(stdin=True)
@@ -109,12 +120,13 @@ class TestShells(TestBase, TempdirMixin):
         if stdin:
             r = self._create_context(["hello_world"])
             p = r.execute_shell(stdout=subprocess.PIPE,
-                                stdin=subprocess.PIPE)
+                                stdin=subprocess.PIPE,
+                                norc=True)
             stdout, _ = p.communicate(input="hello_world\n")
             stdout = stdout.strip()
             self.assertEqual(stdout, "Hello Rez World!")
 
-    @shell_dependent
+    @shell_dependent()
     def test_rcfile(self):
         sh = create_shell()
         rcfile, _, _, command = sh.startup_capabilities(rcfile=True, command=True)
@@ -131,9 +143,15 @@ class TestShells(TestBase, TempdirMixin):
             self.assertEqual(_stdout(p), "Hello Rez World!")
             os.remove(path)
 
-    @shell_dependent
+    @shell_dependent(exclude=["cmd"])
     @install_dependent
     def test_rez_env_output(self):
+        # TODO: this test does not run on Windows using the CMD shell as it
+        # does not accept commands from stdin.  Rather than explicitly skipping
+        # the test (via the decorator) perhaps we should check for startup
+        # capabilities as the other tests do.
+        from rez.vendor.sh import sh
+
         # here we are making sure that running a command via rez-env prints
         # exactly what we expect. We use 'sh' because subprocess strips special
         # characters such as color codes - we want to ensure that the output
@@ -148,7 +166,7 @@ class TestShells(TestBase, TempdirMixin):
         out = str(sh_out).strip()
         self.assertEqual(out, "hey")
 
-    @shell_dependent
+    @shell_dependent()
     @install_dependent
     def test_rez_command(self):
         sh = create_shell()
@@ -164,7 +182,7 @@ class TestShells(TestBase, TempdirMixin):
             p.wait()
             self.assertEqual(p.returncode, 0)
 
-    @shell_dependent
+    @shell_dependent()
     def test_rex_code(self):
         """Test that Rex code run in the shell creates the environment variable
         values that we expect."""
@@ -176,13 +194,17 @@ class TestShells(TestBase, TempdirMixin):
 
             out, _ = p.communicate()
             self.assertEqual(p.returncode, 0)
-            output = out.strip().split('\n')
+            token = '\r\n' if platform_.name == 'windows' else '\n'
+            output = out.strip().split(token)
             self.assertEqual(output, expected_output)
 
-        def _rex_code():
+        def _rex_assigning():
+            import os
+            windows = os.name == "nt"
+
             def _print(value):
                 env.FOO = value
-                info("${FOO}")
+                info("%FOO%" if windows else "${FOO}")
 
             env.GREET = "hi"
             env.WHO = "Gary"
@@ -204,12 +226,12 @@ class TestShells(TestBase, TempdirMixin):
             _print(literal("hello world"))
             _print(literal("hello 'world'"))
             _print(literal('hello "world"'))
-            _print("hey $WHO")
-            _print("hey ${WHO}")
-            _print(expandable("${GREET} ").e("$WHO"))
-            _print(expandable("${GREET} ").l("$WHO"))
+            _print("hey %WHO%" if windows else "hey $WHO")
+            _print("hey %WHO%" if windows else "hey ${WHO}")
+            _print(expandable("%GREET% " if windows else "${GREET} ").e("%WHO%" if windows else "$WHO"))
+            _print(expandable("%GREET% " if windows else "${GREET} ").l("$WHO"))
             _print(literal("${WHO}"))
-            _print(literal("${WHO}").e(" $WHO"))
+            _print(literal("${WHO}").e(" %WHO%" if windows else " $WHO"))
 
         expected_output = [
             "ello",
@@ -234,25 +256,30 @@ class TestShells(TestBase, TempdirMixin):
             "hi Gary",
             "hi $WHO",
             "${WHO}",
-            "${WHO} Gary"]
+            "${WHO} Gary"
+        ]
 
-        _execute_code(_rex_code, expected_output)
+        _execute_code(_rex_assigning, expected_output)
 
+        def _rex_appending():
+            import os
+            windows = os.name == "nt"
 
-def get_test_suites():
-    suites = []
-    suite = unittest.TestSuite()
-    suite.addTest(TestShells("test_no_output"))
-    suite.addTest(TestShells("test_command"))
-    suite.addTest(TestShells("test_command_returncode"))
-    suite.addTest(TestShells("test_norc"))
-    suite.addTest(TestShells("test_stdin"))
-    suite.addTest(TestShells("test_rcfile"))
-    suite.addTest(TestShells("test_rez_env_output"))
-    suite.addTest(TestShells("test_rez_command"))
-    suite.addTest(TestShells("test_rex_code"))
-    suites.append(suite)
-    return suites
+            env.FOO.append("hey")
+            info("%FOO%" if windows else "${FOO}")
+            env.FOO.append(literal("$DAVE"))
+            info("%FOO%" if windows else "${FOO}")
+            env.FOO.append("Dave's not here man")
+            info("%FOO%" if windows else "${FOO}")
+
+        expected_output = [
+            "hey",
+            os.pathsep.join(["hey", "$DAVE"]),
+            os.pathsep.join(["hey", "$DAVE", "Dave's not here man"])
+        ]
+
+        _execute_code(_rex_appending, expected_output)
+
 
 if __name__ == '__main__':
     unittest.main()

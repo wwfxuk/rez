@@ -1,7 +1,8 @@
 from rezgui.qt import QtCore, QtGui
 from rezgui.mixins.ContextViewMixin import ContextViewMixin
+from rez.package_filter import PackageFilterList
 from rezgui.util import get_timestamp_str, update_font, get_icon_widget, create_pane
-from rez.packages import iter_packages
+from rez.packages_ import iter_packages
 from rez.vendor.version.version import VersionRange
 
 
@@ -68,8 +69,9 @@ class VariantVersionsTable(QtGui.QTableWidget, ContextViewMixin):
         hh.setVisible(True)
 
         package_paths = self.context_model.packages_path
+        package_filter = PackageFilterList.from_pod(self.context_model.package_filter)
 
-        if variant and variant.search_path in package_paths:
+        if variant and variant.wrapped.location in package_paths:
             self.version_index = -1
             self.reference_version_index = -1
             reference_version = None
@@ -88,7 +90,7 @@ class VariantVersionsTable(QtGui.QTableWidget, ContextViewMixin):
                 else:
                     packages = [x for x in preloaded_packages if x.version in range_]
             else:
-                it = iter_packages(name=variant.name, paths=package_paths, range=range_)
+                it = iter_packages(name=variant.name, paths=package_paths, range_=range_)
                 packages = sorted(it, key=lambda x: x.version, reverse=True)
 
             self.setRowCount(len(packages))
@@ -122,15 +124,27 @@ class VariantVersionsTable(QtGui.QTableWidget, ContextViewMixin):
                     in_future = False
 
                 item = _item()
-                txt = package.path + "  "
+                txt = package.uri + "  "
+
+                icons = []
                 if in_future:
                     icon = get_icon_widget(
                         "clock_warning", "package did not exist at time of resolve")
+                    icons.append(icon)
+
+                rule = package_filter.excludes(package)
+                if rule:
+                    icon = get_icon_widget(
+                        "excluded", "package was excluded by rule %s" % str(rule))
+                    icons.append(icon)
+
+                if icons:
                     label = QtGui.QLabel(txt)
-                    pane = create_pane([icon, label, None], True, compact=True)
+                    pane = create_pane(icons + [label, None], True, compact=True)
                     self.setCellWidget(row, 0, pane)
                 else:
                     item.setText(txt)
+
                 self.setItem(row, 0, item)
 
                 item = _item()

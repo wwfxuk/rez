@@ -1,7 +1,7 @@
 from rezgui.qt import QtCore, QtGui
 from rezgui.models.ContextModel import ContextModel
 from rezgui.mixins.ContextViewMixin import ContextViewMixin
-from rez.packages import get_completions, iter_packages
+from rez.packages_ import get_completions, iter_packages
 from rez.vendor.version.requirement import Requirement
 
 
@@ -102,10 +102,10 @@ class PackageLineEdit(QtGui.QLineEdit, ContextViewMixin):
         return self.context_model.packages_path
 
     def _textEdited(self, txt):
-        words = get_completions(txt,
+        words = get_completions(str(txt),
                                 paths=self._paths,
                                 family_only=self.family_only)
-        self.completions.setStringList(list(reversed(words)))
+        self.completions.setStringList(list(reversed(list(words))))
 
     def _set_style(self, style=None):
         if style is None:
@@ -140,7 +140,7 @@ class PackageLineEdit(QtGui.QLineEdit, ContextViewMixin):
         if not req.conflict:
             try:
                 it = iter_packages(name=req.name,
-                                   range=req.range,
+                                   range_=req.range,
                                    paths=self._paths)
                 pkg = sorted(it, key=lambda x: x.version)[-1]
             except Exception:

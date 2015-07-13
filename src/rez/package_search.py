@@ -5,11 +5,14 @@ able to search packages much faster - for example, in a database-based package
 repository. The algorithms here serve as backup for those package repositories
 that do not provide an implementation.
 """
-from rez.packages import iter_package_families, iter_packages
-from rez.exceptions import PackageRequestError
+
+
+from rez.packages_ import iter_package_families, iter_packages, get_latest_package
+from rez.exceptions import PackageFamilyNotFoundError
 from rez.util import ProgressBar
 from rez.vendor.pygraph.classes.digraph import digraph
 from collections import defaultdict
+from rez.utils.formatting import PackageRequest
 
 
 def get_reverse_dependency_tree(package_name, depth=None, paths=None):
@@ -38,34 +41,29 @@ def get_reverse_dependency_tree(package_name, depth=None, paths=None):
     g.add_node(package_name)
 
     # build reverse lookup
-    fams = list(iter_package_families(paths))
-
-    package_names = set(x.name for x in fams)
+    it = iter_package_families(paths)
+    package_names = set(x.name for x in it)
     if package_name not in package_names:
-        raise PackageRequestError("No such package family %r" % package_name)
+        raise PackageFamilyNotFoundError("No such package family %r" % package_name)
 
     if depth == 0:
         return pkgs_list, g
 
-    nfams = len(fams)
-    bar = ProgressBar("Searching", nfams)
+    bar = ProgressBar("Searching", len(package_names))
     lookup = defaultdict(set)
 
-    for i, fam in enumerate(fams):
+    for i, package_name_ in enumerate(package_names):
         bar.next()
-        it = iter_packages(name=fam.name, paths=paths)
-        try:
-            pkg = max(it, key=lambda x: x.version)
-        except ValueError:
-            continue
+        it = iter_packages(name=package_name_, paths=paths)
+        pkg = max(it, key=lambda x: x.version)
 
         requires = set(pkg.requires or [])
         for req_list in (pkg.variants or []):
-            requires |= set(req_list)
+            requires.update(req_list)
 
         for req in requires:
             if not req.conflict:
-                lookup[req.name].add(fam.name)
+                lookup[req.name].add(package_name_)
 
     # perform traversal
     bar.finish()
@@ -84,17 +82,53 @@ def get_reverse_dependency_tree(package_name, depth=None, paths=None):
 
         for child in working_set:
             parents = lookup[child] - consumed
-            working_set_ |= parents
-            consumed |= parents
+            working_set_.update(parents)
+            consumed.update(parents)
 
             for parent in parents:
                 g.add_node(parent, attrs=node_attrs)
                 g.add_edge((parent, child))
 
         if working_set_:
-            pkgs_list.append(list(working_set_))
+            pkgs_list.append(sorted(list(working_set_)))
 
         working_set = working_set_
         n += 1
 
     return pkgs_list, g
+
+
+def get_plugins(package_name, paths=None):
+    """Find packages that are plugins of the given package.
+
+    Args:
+        package_name (str): Name of the package.
+        paths (list of str): Paths to search for packages, defaults to
+            `config.packages_path`.
+
+    Returns:
+        list of str: The packages that are plugins of the given package.
+    """
+    pkg = get_latest_package(package_name, paths=paths, error=True)
+    if not pkg.has_plugins:
+        return []
+
+    it = iter_package_families(paths)
+    package_names = set(x.name for x in it)
+    bar = ProgressBar("Searching", len(package_names))
+
+    plugin_pkgs = []
+    for package_name_ in package_names:
+        bar.next()
+        if package_name_ == package_name:
+            continue  # not a plugin of itself
+
+        plugin_pkg = get_latest_package(package_name_, paths=paths)
+        if not plugin_pkg.plugin_for:
+            continue
+        for plugin_for in plugin_pkg.plugin_for:
+            if plugin_for == pkg.name:
+                plugin_pkgs.append(package_name_)
+
+    bar.finish()
+    return plugin_pkgs

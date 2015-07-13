@@ -4,7 +4,8 @@ Sends a post-release email
 from rez.release_hook import ReleaseHook
 from rez.system import system
 from email.mime.text import MIMEText
-from rez.util import print_warning, AttrDictWrapper, ObjectStringFormatter
+from rez.utils.logging_ import print_warning
+from rez.utils.scope import scoped_formatter
 import smtplib
 import sys
 
@@ -26,21 +27,26 @@ class EmailReleaseHook(ReleaseHook):
     def __init__(self, source_path):
         super(EmailReleaseHook, self).__init__(source_path)
 
-    def post_release(self, user, install_path, release_message=None,
-                     changelog=None, previous_version=None,
-                     previous_revision=None):
+    def post_release(self, user, install_path, variants, release_message=None,
+                     changelog=None, previous_version=None, **kwargs):
+        if not variants:
+            return  # nothing was released
 
         # construct email body
         release_dict = dict(path=install_path,
                             previous_version=previous_version or "None.",
                             message=release_message or "No release message.",
                             changelog=changelog or "No changelog.")
-        release_namespace = AttrDictWrapper(release_dict)
-        namespace = dict(release=release_namespace,
-                         system=system,
-                         package=self.package)
 
-        formatter = ObjectStringFormatter(namespace, pretty=True, expand="empty")
+        paths_str = '\n'.join(x.root for x in variants)
+        variants_dict = dict(count=len(variants),
+                             paths=paths_str)
+
+        formatter = scoped_formatter(release=release_dict,
+                                     variants=variants_dict,
+                                     system=system,
+                                     package=self.package)
+
         body = formatter.format(self.settings.body)
         body = body.strip()
         body = body.replace("\n\n\n", "\n\n")

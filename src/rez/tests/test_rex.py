@@ -1,12 +1,16 @@
+"""
+test the rex command generator API
+"""
 from rez.rex import RexExecutor, Python, Setenv, Appendenv, Prependenv, Info, \
-    Comment, Alias, Command, Source, Error, Shebang, Unsetenv
+    Comment, Alias, Command, Source, Error, Shebang, Unsetenv, expandable, \
+    literal
 from rez.rex_bindings import VersionBinding
 from rez.exceptions import RexError, RexUndefinedVariableError
 from rez.config import config
 import rez.vendor.unittest2 as unittest
 from rez.vendor.version.version import Version
 from rez.tests.util import TestBase
-from rez.util import convert_old_commands
+from rez.utils.backcompat import convert_old_commands
 import inspect
 import textwrap
 import os
@@ -220,6 +224,7 @@ class TestRex(TestBase):
         """Test variable expansion."""
         def _rex():
             env.FOO = "foo"
+            env.DOG = "$FOO"  # this will convert to '${FOO}'
             env.BAH = "${FOO}"
             env.EEK = "${BAH}"
             if env.BAH == "foo" and getenv("EEK") == "foo":
@@ -233,11 +238,13 @@ class TestRex(TestBase):
                    env={},
                    expected_actions = [
                        Setenv('FOO', 'foo'),
+                       Setenv('DOG', '${FOO}'),
                        Setenv('BAH', '${FOO}'),
                        Setenv('EEK', '${BAH}'),
                        Info('expansions visible in control flow')],
                    expected_output = {
                        'FOO': 'foo',
+                       'DOG': 'foo',
                        'BAH': 'foo',
                        'EEK': 'foo'})
 
@@ -246,12 +253,15 @@ class TestRex(TestBase):
                    env={"EXT": "alpha"},
                    expected_actions = [
                        Setenv('FOO', 'foo'),
+                       Setenv('DOG', '${FOO}'),
                        Setenv('BAH', '${FOO}'),
                        Setenv('EEK', '${BAH}'),
                        Info('expansions visible in control flow'),
                        Setenv('FEE', '${EXT}')],
                    expected_output = {
                        'FOO': 'foo',
+                       'DOG': 'foo',
+                       'FEE': 'foo',
                        'BAH': 'foo',
                        'EEK': 'foo',
                        'FEE': 'alpha'})
@@ -283,7 +293,7 @@ class TestRex(TestBase):
                    expected_exception=RexError)
 
     def test_8(self):
-        """Custom environment variable separators"""
+        """Custom environment variable separators."""
 
         config.override("env_var_separators", {"FOO":",", "BAH":" "})
 
@@ -309,6 +319,44 @@ class TestRex(TestBase):
                        'FOO': ",".join(["test1","test2","test3"]),
                        'BAH': " ".join(["B","A","C"])})
 
+    def test_9(self):
+        """Test literal and expandable strings."""
+        def _rex():
+            env.A = "hello"
+            env.FOO = expandable("$A")  # will convert to '${A}'
+            env.BAH = expandable("${A}")
+            env.EEK = literal("$A")
+
+        def _rex2():
+            env.BAH = "omg"
+            env.FOO.append("$BAH")
+            env.FOO.append(literal("${BAH}"))
+            env.FOO.append(expandable("like, ").l("$SHE said, ").e("$BAH"))
+
+        self._test(func=_rex,
+                   env={},
+                   expected_actions = [
+                       Setenv('A', 'hello'),
+                       Setenv('FOO', '${A}'),
+                       Setenv('BAH', '${A}'),
+                       Setenv('EEK', '$A')],
+                   expected_output = {
+                       'A': 'hello',
+                       'FOO': 'hello',
+                       'BAH': 'hello',
+                       'EEK': '$A'})
+
+        self._test(func=_rex2,
+                   env={},
+                   expected_actions = [
+                       Setenv('BAH', 'omg'),
+                       Setenv('FOO', '${BAH}'),
+                       Appendenv('FOO', '${BAH}'),
+                       Appendenv('FOO', 'like, $SHE said, ${BAH}')],
+                   expected_output = {
+                       'BAH': 'omg',
+                       'FOO': os.pathsep.join(['omg', '${BAH}', 'like']) + ', $SHE said, omg'})
+
     def test_version_binding(self):
         """Test the Rex binding of the Version class."""
         v = VersionBinding(Version("1.2.3alpha"))
@@ -332,7 +380,7 @@ class TestRex(TestBase):
         rez_commands = convert_old_commands(["export A=B"], annotate=False)
         self.assertEqual(rez_commands, expected)
 
-        expected = "setenv('A', 'B:{env.C}')"
+        expected = "setenv('A', 'B:$C')"
         rez_commands = convert_old_commands(["export A=B:$C"], annotate=False)
         self.assertEqual(rez_commands, expected)
 
@@ -349,32 +397,15 @@ class TestRex(TestBase):
         rez_commands = convert_old_commands(["export A=B:$A"], annotate=False)
         self.assertEqual(rez_commands, expected)
 
-        expected = "appendenv('A', 'B:{env.C}')"
+        expected = "appendenv('A', 'B:$C')"
         rez_commands = convert_old_commands(["export A=$A:B:$C"],
                                             annotate=False)
         self.assertEqual(rez_commands, expected)
 
-        expected = "prependenv('A', '{env.C}:B')"
+        expected = "prependenv('A', '$C:B')"
         rez_commands = convert_old_commands(["export A=$C:B:$A"],
                                             annotate=False)
         self.assertEqual(rez_commands, expected)
-
-
-def get_test_suites():
-    suites = []
-    suite = unittest.TestSuite()
-    suite.addTest(TestRex("test_1"))
-    suite.addTest(TestRex("test_2"))
-    suite.addTest(TestRex("test_3"))
-    suite.addTest(TestRex("test_4"))
-    suite.addTest(TestRex("test_5"))
-    suite.addTest(TestRex("test_6"))
-    suite.addTest(TestRex("test_7"))
-    suite.addTest(TestRex("test_8"))
-    suite.addTest(TestRex("test_version_binding"))
-    suite.addTest(TestRex("test_old_style_commands"))
-    suites.append(suite)
-    return suites
 
 
 if __name__ == '__main__':

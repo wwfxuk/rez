@@ -1,14 +1,18 @@
-from rez.build_process import LocalSequentialBuildProcess
+"""
+test the build system
+"""
+from rez.build_process_ import create_build_process
 from rez.build_system import create_build_system
 from rez.resolved_context import ResolvedContext
-from rez.exceptions import BuildError, BuildContextResolveError
+from rez.exceptions import BuildError, BuildContextResolveError,\
+    PackageFamilyNotFoundError
 import rez.vendor.unittest2 as unittest
-from rez.tests.util import TestBase, TempdirMixin, shell_dependent, \
-    install_dependent
-from rez.resources import clear_caches
+from rez.tests.util import TestBase, TempdirMixin, find_file_in_path, \
+    shell_dependent, install_dependent, cmake_dependent
 import shutil
 import os.path
 
+# TODO: variant-based test
 
 class TestBuild(TestBase, TempdirMixin):
 
@@ -24,8 +28,10 @@ class TestBuild(TestBase, TempdirMixin):
 
         cls.settings = dict(
             packages_path=[cls.install_root],
+            package_filter=None,
             resolve_caching=False,
             warn_untimestamped=False,
+            warn_old_commands=False,
             implicit_packages=[])
 
     @classmethod
@@ -35,15 +41,12 @@ class TestBuild(TestBase, TempdirMixin):
     @classmethod
     def _create_builder(cls, working_dir):
         buildsys = create_build_system(working_dir)
-        return LocalSequentialBuildProcess(working_dir,
-                                           buildsys,
-                                           vcs=None)
+        return create_build_process(process_type="local",
+                                    working_dir=working_dir,
+                                    build_system=buildsys)
 
     @classmethod
     def _create_context(cls, *pkgs):
-        # cache clear is needed to clear Resource._listdir cache, which hides
-        # newly added packages
-        clear_caches()
         return ResolvedContext(pkgs)
 
     def _test_build(self, name, version=None):
@@ -92,7 +95,30 @@ class TestBuild(TestBase, TempdirMixin):
         self._create_context("bah==2.1", "foo==1.0.0")
         self._create_context("bah==2.1", "foo==1.1.0")
 
-    @shell_dependent
+    def _test_build_anti(self):
+        """Build, install, test the anti package."""
+        self._test_build("anti", "1.0.0")
+        self._create_context("anti==1.0.0")
+
+
+    def _test_build_translate_lib(self):
+        """Build, install, test the translate_lib package."""
+        self._test_build("translate_lib", "2.2.0")
+        context = self._create_context("translate_lib==2.2.0")
+        environ = context.get_environ()
+        find_file_in_path('translate_lib.cmake', environ['CMAKE_MODULE_PATH'])
+
+    def _test_build_sup_world(self):
+        """Build, install, test the sup_world package."""
+        from subprocess import PIPE
+        self._test_build("sup_world", "3.8")
+        context = self._create_context("sup_world==3.8")
+        proc = context.execute_command(['test_ghetto'], stdout=PIPE)
+        stdout = proc.communicate()[0]
+        self.assertEqual('sup dogg - how is dis shizzle doin today?',
+                         stdout.strip())
+
+    @shell_dependent()
     @install_dependent
     def test_build_whack(self):
         """Test that a broken build fails correctly."""
@@ -100,7 +126,7 @@ class TestBuild(TestBase, TempdirMixin):
         builder = self._create_builder(working_dir)
         self.assertRaises(BuildError, builder.build, clean=True)
 
-    @shell_dependent
+    @shell_dependent()
     @install_dependent
     def test_builds(self):
         """Test an interdependent set of builds."""
@@ -110,14 +136,21 @@ class TestBuild(TestBase, TempdirMixin):
         self._test_build_loco()
         self._test_build_bah()
 
+    @shell_dependent()
+    @install_dependent
+    def test_builds_anti(self):
+        """Test we can build packages that contain anti packages"""
+        self._test_build_build_util()
+        self._test_build_floob()
+        self._test_build_anti()
 
-def get_test_suites():
-    suites = []
-    suite = unittest.TestSuite()
-    suite.addTest(TestBuild("test_build_whack"))
-    suite.addTest(TestBuild("test_builds"))
-    suites.append(suite)
-    return suites
+    @cmake_dependent
+    def test_build_cmake(self):
+        self.assertRaises(PackageFamilyNotFoundError, self._create_context,
+            "sup_world==3.8")
+        self._test_build_translate_lib()
+        self._test_build_sup_world()
+
 
 if __name__ == '__main__':
     unittest.main()

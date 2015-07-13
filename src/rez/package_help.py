@@ -1,8 +1,8 @@
-from rez.packages import iter_packages
+from rez.packages_ import iter_packages
 from rez.config import config
 from rez.rex_bindings import VersionBinding
-from rez.util import AttrDictWrapper, ObjectStringFormatter, \
-    convert_old_command_expansions
+from rez.utils.backcompat import convert_old_command_expansions
+from rez.utils.scope import scoped_formatter
 from rez.system import system
 import subprocess
 import webbrowser
@@ -29,11 +29,11 @@ class PackageHelp(object):
 
         # find latest package with a help entry
         package = None
-        it = iter_packages(package_name, range=version_range)
+        it = iter_packages(package_name, range_=version_range)
         packages = sorted(it, key=lambda x: x.version, reverse=True)
         for package_ in packages:
             if self._verbose:
-                print "searching for help in %s..." % str(package_)
+                print "searching for help in %s..." % package_.uri
             if package_.help:
                 package = package_
                 break
@@ -45,22 +45,23 @@ class PackageHelp(object):
             elif isinstance(help_, list):
                 sections = help_
             if self._verbose:
-                print "found %d help entries in %s." % (len(sections), str(package))
+                print "found %d help entries in %s." % (len(sections), package.uri)
 
             # create string formatter for help entries
             if package.num_variants == 0:
-                base = os.path.dirname(package.path)
+                base = package.base
                 root = base
             else:
                 variant = package.get_variant(0)
                 base = variant.base
                 root = variant.root
 
-            namespace = dict(base=base, root=root, config=config,
-                             version=VersionBinding(package.version),
-                             system=system)
-            formatter = ObjectStringFormatter(AttrDictWrapper(namespace),
-                                              expand='unchanged')
+            formatter = scoped_formatter(
+                base=base,
+                root=root,
+                config=config,
+                version=VersionBinding(package.version),
+                system=system)
 
             # format sections
             for section in sections:

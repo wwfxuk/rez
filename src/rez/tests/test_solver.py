@@ -1,3 +1,6 @@
+"""
+test dependency resolving algorithm
+"""
 from rez.vendor.version.requirement import Requirement
 from rez.solver import Solver, Cycle, SolverStatus
 import rez.vendor.unittest2 as unittest
@@ -10,9 +13,11 @@ class TestSolver(TestBase):
     @classmethod
     def setUpClass(cls):
         path = os.path.dirname(__file__)
-        cls.packages_path = os.path.join(path, "data", "solver", "packages")
+        packages_path = os.path.join(path, "data", "solver", "packages")
+        cls.packages_path = [packages_path]
         cls.settings = dict(
-            packages_path=[cls.packages_path])
+            packages_path=[cls.packages_path],
+            package_filter=None)
 
     def _create_solvers(self, reqs):
         s1 = Solver(reqs,
@@ -28,7 +33,7 @@ class TestSolver(TestBase):
         perms = itertools.permutations(reqs)
         for reqs_ in perms:
             s = Solver(reqs_,
-                        self.packages_path,
+                       self.packages_path,
                        optimised=True,
                        verbosity=Solver.max_verbosity)
             s_perms.append(s)
@@ -190,20 +195,6 @@ class TestSolver(TestBase):
         s = self._fail("pymum-2")
         self.assertFalse(isinstance(s.failure_reason(), Cycle))
 
-
-def get_test_suites():
-    suites = []
-    suite = unittest.TestSuite()
-    suite.addTest(TestSolver("test_1"))
-    suite.addTest(TestSolver("test_2"))
-    suite.addTest(TestSolver("test_3"))
-    suite.addTest(TestSolver("test_4"))
-    suite.addTest(TestSolver("test_5"))
-    suite.addTest(TestSolver("test_6"))
-    suite.addTest(TestSolver("test_7"))
-    suite.addTest(TestSolver("test_8"))
-    suites.append(suite)
-    return suites
 
 if __name__ == '__main__':
     unittest.main()

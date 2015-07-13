@@ -1,6 +1,6 @@
-from rez.build_process import BuildType
+from rez.build_process_ import BuildType
 from rez.exceptions import BuildSystemError
-from rez.packages import load_developer_package
+from rez.packages_ import get_developer_package
 
 
 def get_buildsys_types():
@@ -56,6 +56,8 @@ def create_build_system(working_dir, buildsys_type=None, opts=None,
 
 
 class BuildSystem(object):
+    """A build system, such as cmake, make, Scons etc.
+    """
     @classmethod
     def name(cls):
         """Return the name of the build system, eg 'make'."""
@@ -82,7 +84,7 @@ class BuildSystem(object):
             raise BuildSystemError("Not a valid %s working directory: %s"
                                    % (self.name(), working_dir))
 
-        self.package = load_developer_package(working_dir)
+        self.package = get_developer_package(working_dir)
         self.write_build_scripts = write_build_scripts
         self.build_args = build_args
         self.child_build_args = child_build_args
@@ -115,13 +117,14 @@ class BuildSystem(object):
         """
         pass
 
-    def build(self, context, build_path, install_path, install=False,
+    def build(self, context, variant, build_path, install_path, install=False,
               build_type=BuildType.local):
         """Implement this method to perform the actual build.
 
         Args:
             context: A ResolvedContext object that the build process must be
                 executed within.
+            variant (`Variant`): The variant being built.
             build_path: Where to write temporary build files. May be relative
                 to working_dir.
             install_path: Where to install the build, if the build is installed.

@@ -1,3 +1,6 @@
+"""
+test rex string formatting
+"""
 import rez.vendor.unittest2 as unittest
 from rez.tests.util import TestBase
 from rez.rex import NamespaceFormatter
@@ -17,7 +20,8 @@ class TestFormatter(TestBase):
 
     def test_formatter_rex(self):
         self.assert_formatter_equal('Hello, ${world}!', 'Hello, ${world}!')
-        self.assert_formatter_equal('Hello, ${{world}}!', 'Hello, ${Earth}!', world="Earth")
+        self.assert_formatter_equal('Hello, $WORLD!', 'Hello, ${WORLD}!')
+        self.assert_formatter_equal('Hello, ${{world}}!', 'Hello, ${world}!', world="Earth")
         self.assert_formatter_equal('Hello, {world}!', 'Hello, Earth!', world="Earth")
 
     def test_formatter_stdlib(self):
@@ -254,14 +258,6 @@ class TestFormatter(TestBase):
         self.assert_formatter_raises("{0:-s}", ValueError, '')
         self.assert_formatter_raises("{0:=s}", ValueError, '')
 
-
-def get_test_suites():
-    suites = []
-    suite = unittest.TestSuite()
-    suite.addTest(TestFormatter("test_formatter_stdlib"))
-    suite.addTest(TestFormatter("test_formatter_rex"))
-    suites.append(suite)
-    return suites
 
 if __name__ == '__main__':
     unittest.main()

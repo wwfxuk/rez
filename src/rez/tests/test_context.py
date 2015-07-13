@@ -1,6 +1,10 @@
+"""
+test resolved contexts
+"""
 from rez.tests.util import TestBase, TempdirMixin
 from rez.resolved_context import ResolvedContext
 from rez.bind import hello_world
+from rez.utils.platform_ import platform_
 import rez.vendor.unittest2 as unittest
 import subprocess
 import os.path
@@ -18,6 +22,7 @@ class TestContext(TestBase, TempdirMixin):
 
         cls.settings = dict(
             packages_path=[packages_path],
+            package_filter=None,
             implicit_packages=[],
             warn_untimestamped=False,
             resolve_caching=False)
@@ -36,6 +41,11 @@ class TestContext(TestBase, TempdirMixin):
 
     def test_execute_command(self):
         """Test command execution in context."""
+        if platform_.name == "windows":
+            self.skipTest("This test does not run on Windows due to problems"
+                          " with the automated binding of the 'hello_world'"
+                          " executable.")
+
         r = ResolvedContext(["hello_world"])
         p = r.execute_command(["hello_world"], stdout=subprocess.PIPE)
         stdout, _ = p.communicate()
@@ -51,16 +61,6 @@ class TestContext(TestBase, TempdirMixin):
         # load
         r2 = ResolvedContext.load(file)
         self.assertEqual(r.resolved_packages, r2.resolved_packages)
-
-
-def get_test_suites():
-    suites = []
-    suite = unittest.TestSuite()
-    suite.addTest(TestContext("test_create_context"))
-    suite.addTest(TestContext("test_execute_command"))
-    suite.addTest(TestContext("test_serialize"))
-    suites.append(suite)
-    return suites
 
 
 if __name__ == '__main__':
