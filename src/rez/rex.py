@@ -362,7 +362,10 @@ class ActionManager(object):
 
     def alias(self, key, value):
         key = str(self._format(key))
-        value = str(self._format(value))
+        if isinstance(value, list):
+            value = ' '.join([str(self._format(item)) for item in value])
+        else:
+            value = str(self._format(value))
         self.actions.append(Alias(key, value))
         self.interpreter.alias(key, value)
 
