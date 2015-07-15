@@ -197,6 +197,9 @@ package_filter = None
 parent_variables = []
 all_parent_variables = False
 
+# Variables that MUST not be propagated into rez environment even if no package modifies them
+blacklisted_parent_variables = ['PYTHONHOME', 'PYTHONPATH', 'PYTHONSTARTUP', 'LD_LIBRARY_PATH'] 
+
 # When two or more packages in a resolve attempt to set the same environment
 # variable, Rez's default behaviour is to flag this as a conflict and abort the
 # resolve. You can overcome this in a package's commands section by using the

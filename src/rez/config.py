@@ -194,6 +194,7 @@ config_schema = Schema({
     "bind_module_path":                             PathList,
     "implicit_packages":                            StrList,
     "parent_variables":                             StrList,
+    "blacklisted_parent_variables":                 StrList,
     "resetting_variables":                          StrList,
     "release_hooks":                                StrList,
     "critical_styles":                              OptionalStrList,
