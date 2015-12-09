@@ -123,7 +123,6 @@ class Int(Setting):
             raise ConfigurationError("expected %s to be an integer"
                                      % self._env_var_name)
 
-
 class Bool(Setting):
     schema = Schema(bool)
     true_words = frozenset(["1", "true", "yes", "y", "on"])
@@ -188,6 +187,30 @@ class RezToolsVisibility_(Str):
         return Or(*(x.name for x in RezToolsVisibility))
 
 
+class BuildThreadCount_(Setting):
+    # may be a positive int, or the values "physical" or "logical"
+
+    @cached_class_property
+    def schema(cls):
+        from rez.utils.platform_ import platform_
+
+        # Note that this bakes the physical / logical cores at the time the
+        # config is read... which should be fine
+        return Or(
+            And(int, lambda x: x > 0),
+            And("physical_cores", Use(lambda x: platform_.physical_cores)),
+            And("logical_cores", Use(lambda x: platform_.logical_cores)),
+        )
+
+    def _parse_env_var(self, value):
+        try:
+            return int(value)
+        except ValueError:
+            # wasn't a string - hopefully it's "physical" or "logical"...
+            # ...but this will be validated by the schema...
+            return value
+
+
 config_schema = Schema({
     "packages_path":                                PathList,
     "plugin_path":                                  PathList,
@@ -216,6 +239,7 @@ config_schema = Schema({
     "rez_tools_visibility":                         RezToolsVisibility_,
     "suite_alias_prefix_char":                      Char,
     "tmpdir":                                       OptionalStr,
+    "context_tmpdir":                               OptionalStr,
     "default_shell":                                OptionalStr,
     "terminal_emulator_command":                    OptionalStr,
     "editor":                                       OptionalStr,
@@ -240,12 +264,14 @@ config_schema = Schema({
     "implicit_back":                                OptionalStr,
     "alias_fore":                                   OptionalStr,
     "alias_back":                                   OptionalStr,
+    "build_thread_count":                           BuildThreadCount_,
     "resource_caching_maxsize":                     Int,
     "max_package_changelog_chars":                  Int,
     "memcached_package_file_min_compress_len":      Int,
     "memcached_context_file_min_compress_len":      Int,
     "memcached_listdir_min_compress_len":           Int,
     "memcached_resolve_min_compress_len":           Int,
+    "rxt_as_yaml":                                  Bool,
     "color_enabled":                                Bool,
     "resolve_caching":                              Bool,
     "cache_package_files":                          Bool,
@@ -264,8 +290,8 @@ config_schema = Schema({
     "debug_bind_modules":                           Bool,
     "debug_resources":                              Bool,
     "debug_package_exclusions":                     Bool,
-    "debug_resolve_memcache":                       Bool,
     "debug_memcache":                               Bool,
+    "debug_resolve_memcache":                       Bool,
     "debug_all":                                    Bool,
     "debug_none":                                   Bool,
     "quiet":                                        Bool,
@@ -302,7 +328,8 @@ config_schema = Schema({
 _plugin_config_dict = {
     "release_vcs": {
         "tag_name":                     basestring,
-        "releasable_branches":          Or(None, [basestring])
+        "releasable_branches":          Or(None, [basestring]),
+        "check_tag":                    bool
     }
 }
 
@@ -490,7 +517,8 @@ class Config(object):
         filepaths = []
         filepaths.append(get_module_root_config())
         filepath = os.getenv("REZ_CONFIG_FILE")
-        filepaths.append(filepath)
+        if filepath:
+            filepaths.append(filepath)
 
         filepath = os.path.expanduser("~/.rezconfig")
         filepaths.append(filepath)
@@ -507,6 +535,10 @@ class Config(object):
     # -- dynamic defaults
 
     def _get_tmpdir(self):
+        from rez.utils.platform_ import platform_
+        return platform_.tmpdir
+
+    def _get_context_tmpdir(self):
         from rez.utils.platform_ import platform_
         return platform_.tmpdir
 

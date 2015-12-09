@@ -1,6 +1,4 @@
-from rez import __version__
 from rez.config import config
-from rez.utils.logging_ import print_debug
 from rez.vendor.memcache.memcache import Client as Client_, SERVER_MAX_KEY_LENGTH
 from threading import local
 from contextlib import contextmanager
@@ -8,6 +6,10 @@ from functools import update_wrapper
 from inspect import getargspec, isgeneratorfunction
 from hashlib import md5
 from uuid import uuid4
+
+
+# this version should be changed if and when the caching interface changes
+cache_interface_version = 1
 
 
 class Client(object):
@@ -21,6 +23,8 @@ class Client(object):
     class _Miss(object):
         def __nonzero__(self): return False
     miss = _Miss()
+
+    logger = config.debug_printer("memcache")
 
     def __init__(self, servers, debug=False):
         """Create a memcached client.
@@ -48,7 +52,6 @@ class Client(object):
             `memcache.Client` instance.
         """
         if self._client is None:
-            #print "Connected memcached client %s" % str(self)
             self._client = Client_(self.servers)
         return self._client
 
@@ -80,6 +83,7 @@ class Client(object):
                         val=val,
                         time=time,
                         min_compress_len=min_compress_len)
+        self.logger("SET: %s", key)
 
     def get(self, key):
         """See memcache.Client.
@@ -99,7 +103,10 @@ class Client(object):
         if isinstance(entry, tuple) and len(entry) == 2:
             key_, result = entry
             if key_ == key:
+                self.logger("HIT: %s", key)
                 return result
+
+        self.logger("MISS: %s", key)
         return self.miss
 
     def delete(self, key):
@@ -148,7 +155,7 @@ class Client(object):
         #print "Disconnected memcached client %s" % str(self)
 
     def _qualified_key(self, key):
-        return "%s:%s:%s" % (__version__, self.current, key)
+        return "%s:%s:%s" % (cache_interface_version, self.current, key)
 
     def _get_stats(self, stat_args=None):
         return self.client.get_stats(stat_args=stat_args)
@@ -205,7 +212,7 @@ def memcached_client(servers=config.memcached_uri, debug=config.debug_memcache):
     the same time unnecessary extra reconnections are avoided. Typically an
     initial scope (using 'with' construct) is made around parts of code that hit
     the cache server many times - such as a resolve, or executing a context. On
-    exist of the topmost scope, the memcached client is disconnected.
+    exit of the topmost scope, the memcached client is disconnected.
 
     Returns:
         `Client`: Memcached instance.

@@ -24,18 +24,23 @@ class GitReleaseVCS(ReleaseVCS):
     def name(cls):
         return 'git'
 
-    def __init__(self, path):
-        super(GitReleaseVCS, self).__init__(path)
+    def __init__(self, pkg_root, vcs_root=None):
+        super(GitReleaseVCS, self).__init__(pkg_root, vcs_root=vcs_root)
         self.executable = self.find_executable('git')
 
         try:
             self.git("rev-parse")
         except ReleaseVCSError:
-            raise GitReleaseVCSError("%s is not a git repository" % path)
+            raise GitReleaseVCSError("%s is not a git repository" %
+                                     self.vcs_root)
 
     @classmethod
     def is_valid_root(cls, path):
         return os.path.isdir(os.path.join(path, '.git'))
+
+    @classmethod
+    def search_parents_for_root(cls):
+        return True
 
     def git(self, *nargs):
         return self._cmd(self.executable, *nargs)
@@ -73,7 +78,8 @@ class GitReleaseVCS(ReleaseVCS):
                                   "--symbolic-full-name", "@{u}")[0]
             return remote_uri.split('/', 1)
         except Exception as e:
-            if "No upstream branch" not in str(e):
+            if ("No upstream branch" not in str(e)
+                    and "No upstream configured" not in str(e)):
                 raise e
         return (None, None)
 
@@ -85,7 +91,7 @@ class GitReleaseVCS(ReleaseVCS):
         remote, remote_branch = self.get_tracking_branch()
 
         # check for upstream branch
-        if remote is None and not self.settings.allow_no_upstream:
+        if remote is None and (not self.settings.allow_no_upstream):
             raise ReleaseVCSError(
                 "Release cancelled: there is no upstream branch (git cannot see "
                 "a remote repo - you should probably FIX THIS FIRST!). To allow "
@@ -145,6 +151,7 @@ class GitReleaseVCS(ReleaseVCS):
             stdout = self.git("log", commit_range)
         else:
             stdout = self.git("log")
+
         return '\n'.join(stdout)
 
     def get_current_revision(self):
@@ -183,10 +190,12 @@ class GitReleaseVCS(ReleaseVCS):
             _get("push_url", functools.partial(_url, "push"))
         return doc
 
-    def create_release_tag(self, tag_name, message=None):
-        # check if tag already exists
+    def tag_exists(self, tag_name):
         tags = self.git("tag")
-        if tag_name in tags:  # already exists
+        return (tag_name in tags)
+
+    def create_release_tag(self, tag_name, message=None):
+        if self.tag_exists(tag_name):
             return
 
         # create tag

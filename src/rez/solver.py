@@ -427,7 +427,6 @@ class _PackageVariantList(_Common):
         self.package_filter = package_filter
         self.building = building
         self.package_load_callback = package_load_callback
-        self.variants = []
 
         # note: we do not apply package filters here, because doing so might
         # cause package loads (eg, timestamp rules). We only apply filters
@@ -669,6 +668,7 @@ class _PackageVariantSlice(_Common):
         """Sort variants from most correct to consume, to least.
 
         Sort rules:
+
         version_priority:
         - sort by highest versions of packages shared with request;
         - THEN least number of additional packages added to solve;
@@ -678,11 +678,7 @@ class _PackageVariantSlice(_Common):
 
         intersection_priority:
         - sort by highest number of packages shared with request;
-        - THEN highest versions of packages shared with request;
-        - THEN least number of additional packages added to solve;
-        - THEN highest versions of additional packages;
-        - THEN alphabetical on name of additional packages;
-        - THEN variant index.
+        - THEN sort according to version_priority
 
         Note:
             In theory 'variant.index' should never factor into the sort unless
@@ -694,37 +690,42 @@ class _PackageVariantSlice(_Common):
             Assumes self.variants is already in version-descending order.
         """
         def key(variant):
-            k1 = []
+            requested_key = []
             names = set()
             for i, request in enumerate(package_requests):
                 if not request.conflict:
                     req = variant.requires_list.get(request.name)
                     if req is not None:
-                        k1.append((-i, req.range))
+                        requested_key.append((-i, req.range))
                         names.add(req.name)
 
-            k2 = []
+            additional_key = []
             for request in variant.requires_list:
                 if not request.conflict and request.name not in names:
-                    k2.append((request.range, request.name))
+                    additional_key.append((request.range, request.name))
 
             if config.variant_select_mode == VariantSelectMode.version_priority:
-                k = (k1, -len(k2), k2, variant.index)
+                k = (requested_key,
+                     -len(additional_key),
+                     additional_key,
+                     variant.index)
             else:  # VariantSelectMode.intersection_priority
-                k = (len(k1), k1, -len(k2), k2, variant.index)
+                k = (len(requested_key),
+                     requested_key,
+                     -len(additional_key),
+                     additional_key,
+                     variant.index)
 
             return k
 
-        variants2 = []
+        resorted_variants = []
         for _, it in groupby(self.variants, lambda x: x.version):
-            variants3 = list(it)
-            if len(variants3) == 1:
-                variants2.extend(variants3)
-            else:
-                variants4 = sorted(variants3, key=key, reverse=True)
-                variants2.extend(variants4)
+            version_variants = list(it)
+            if len(version_variants) != 1:
+                version_variants.sort(key=key, reverse=True)
+            resorted_variants.extend(version_variants)
 
-        self.variants = variants2
+        self.variants = resorted_variants
 
     def dump(self):
         print self.package_name
@@ -1302,12 +1303,10 @@ class _ResolvePhase(_Common):
         node_fontsize = 10
         counter = [1]
 
-
         def _uid():
             id_ = counter[0]
             counter[0] += 1
             return "_%d" % id_
-
 
         def _add_edge(id1, id2, arrowsize=0.5):
             e = (id1, id2)
@@ -1317,11 +1316,9 @@ class _ResolvePhase(_Common):
             g.add_edge_attribute(e, ("arrowsize", str(arrowsize)))
             return e
 
-
         def _add_extraction_merge_edge(id1, id2):
             e = _add_edge(id1, id2, 1)
             g.add_edge_attribute(e, ("arrowhead", "odot"))
-
 
         def _add_conflict_edge(id1, id2):
             e = _add_edge(id1, id2, 1)
@@ -1330,7 +1327,6 @@ class _ResolvePhase(_Common):
             g.add_edge_attribute(e, ("color", "red"))
             g.add_edge_attribute(e, ("fontcolor", "red"))
 
-
         def _add_cycle_edge(id1, id2):
             e = _add_edge(id1, id2, 1)
             g.set_edge_label(e, "CYCLE")
@@ -1338,12 +1334,10 @@ class _ResolvePhase(_Common):
             g.add_edge_attribute(e, ("color", "red"))
             g.add_edge_attribute(e, ("fontcolor", "red"))
 
-
         def _add_reduct_edge(id1, id2, label):
             e = _add_edge(id1, id2, 1)
             g.set_edge_label(e, label)
             g.add_edge_attribute(e, ("fontsize", node_fontsize))
-
 
         def _add_node(label, color, style):
             attrs = [("label", label),
@@ -1353,7 +1347,6 @@ class _ResolvePhase(_Common):
             id_ = _uid()
             g.add_node(id_, attrs=attrs)
             return id_
-
 
         def _add_request_node(request, initial_request=False):
             id_ = request_nodes.get(request)
@@ -1369,7 +1362,6 @@ class _ResolvePhase(_Common):
             id_ = _add_node(label, color, "filled,dashed")
             request_nodes[request] = id_
             return id_
-
 
         def _add_scope_node(scope):
             id_ = scope_nodes.get(scope.package_name)
@@ -1394,10 +1386,8 @@ class _ResolvePhase(_Common):
             scope_nodes[scope.package_name] = id_
             return id_
 
-
         def _add_reduct_node(request):
             return _add_node(str(request), node_color, "filled,dashed")
-
 
         # -- generate the graph
 

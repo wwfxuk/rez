@@ -9,3 +9,4 @@ dist/
 *~
 docs/_build
 .aliases
+.DS_Store

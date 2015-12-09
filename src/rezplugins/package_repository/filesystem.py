@@ -5,7 +5,7 @@ from rez.package_repository import PackageRepository
 from rez.package_resources_ import PackageFamilyResource, PackageResource, \
     VariantResourceHelper, PackageResourceHelper, package_pod_schema, \
     package_release_keys
-from rez.serialise import clear_file_caches
+from rez.serialise import clear_file_caches, open_file_for_write
 from rez.package_serialise import dump_package_data
 from rez.exceptions import PackageMetadataError, ResourceError, RezSystemError, \
     ConfigurationError, PackageRepositoryError
@@ -412,6 +412,12 @@ class FileSystemPackageRepository(PackageRepository):
 
         self.settings = config.plugins.package_repository.filesystem
 
+        self.get_families = lru_cache(maxsize=None)(self._get_families)
+        self.get_family = lru_cache(maxsize=None)(self._get_family)
+        self.get_packages = lru_cache(maxsize=None)(self._get_packages)
+        self.get_variants = lru_cache(maxsize=None)(self._get_variants)
+        self.get_file = lru_cache(maxsize=None)(self._get_file)
+
     def _uid(self):
         t = ["filesystem", self.location]
         if os.path.exists(self.location):
@@ -420,20 +426,20 @@ class FileSystemPackageRepository(PackageRepository):
         return tuple(t)
 
     def get_package_family(self, name):
-        return self._get_family(name)
+        return self.get_family(name)
 
     @pool_memcached_connections
     def iter_package_families(self):
-        for family in self._get_families():
+        for family in self.get_families():
             yield family
 
     @pool_memcached_connections
     def iter_packages(self, package_family_resource):
-        for package in self._get_packages(package_family_resource):
+        for package in self.get_packages(package_family_resource):
             yield package
 
     def iter_variants(self, package_resource):
-        for variant in self._get_variants(package_resource):
+        for variant in self.get_variants(package_resource):
             yield variant
 
     def get_parent_package_family(self, package_resource):
@@ -496,11 +502,11 @@ class FileSystemPackageRepository(PackageRepository):
 
     def clear_caches(self):
         super(FileSystemPackageRepository, self).clear_caches()
-        self._get_families.cache_clear()
-        self._get_family.cache_clear()
-        self._get_packages.cache_clear()
-        self._get_variants.cache_clear()
-        self._get_file.cache_clear()
+        self.get_families.cache_clear()
+        self.get_family.cache_clear()
+        self.get_packages.cache_clear()
+        self.get_variants.cache_clear()
+        self.get_file.cache_clear()
         self._get_family_dirs.forget()
         self._get_version_dirs.forget()
         # unfortunately we need to clear file cache across the board
@@ -509,8 +515,11 @@ class FileSystemPackageRepository(PackageRepository):
     # -- internal
 
     def _get_family_dirs__key(self):
-        st = os.stat(self.location)
-        return str(("listdir", self.location, st.st_ino, st.st_mtime))
+        if os.path.isdir(self.location):
+            st = os.stat(self.location)
+            return str(("listdir", self.location, st.st_ino, st.st_mtime))
+        else:
+            return str(("listdir", self.location))
 
     @memcached(servers=config.memcached_uri if config.cache_listdir else None,
                min_compress_len=config.memcached_listdir_min_compress_len,
@@ -549,8 +558,6 @@ class FileSystemPackageRepository(PackageRepository):
                 dirs.append(name)
         return dirs
 
-    # TODO: replace with cached_property
-    @lru_cache(maxsize=None)
     def _get_families(self):
         families = []
         for name, ext in self._get_family_dirs():
@@ -568,8 +575,6 @@ class FileSystemPackageRepository(PackageRepository):
             families.append(family)
         return families
 
-    # TODO: create lru_cache manually in __init__, safer
-    @lru_cache(maxsize=None)
     def _get_family(self, name):
         is_valid_package_name(name, raise_error=True)
         if os.path.isdir(os.path.join(self.location, name)):
@@ -579,7 +584,7 @@ class FileSystemPackageRepository(PackageRepository):
                 name=name)
             return family
         else:
-            filepath, format_ = self._get_file(self.location, name)
+            filepath, format_ = self.get_file(self.location, name)
             if filepath:
                 family = self.get_resource(
                     FileSystemCombinedPackageFamilyResource.key,
@@ -589,15 +594,12 @@ class FileSystemPackageRepository(PackageRepository):
                 return family
         return None
 
-    @lru_cache(maxsize=None)
     def _get_packages(self, package_family_resource):
         return [x for x in package_family_resource.iter_packages()]
 
-    @lru_cache(maxsize=None)
     def _get_variants(self, package_resource):
         return [x for x in package_resource.iter_variants()]
 
-    @lru_cache(maxsize=None)
     def _get_file(self, path, name):
         for format_ in (FileFormat.py, FileFormat.yaml):
             filename = "%s.%s" % (name, format_.extension)
@@ -758,7 +760,7 @@ class FileSystemPackageRepository(PackageRepository):
                 package_data[key] = value
 
         filepath = os.path.join(path, "package.py")
-        with open(filepath, 'w') as f:
+        with open_file_for_write(filepath) as f:
             dump_package_data(package_data, buf=f, format_=package_format)
 
         # touch the family dir, this keeps memcached resolves updated properly
