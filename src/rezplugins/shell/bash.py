@@ -53,6 +53,10 @@ class Bash(SH):
             path = os.getenv(envvar)
             if path and os.path.isfile(os.path.expanduser(path)):
                 files.append(path)
+            # For onleiner, source bashrc if not aleady in list
+            bashrc = '~/.bashrc'
+            if bashrc not in files:
+                files.append(bashrc)
         elif rcfile or norc:
             do_rcfile = True
             if rcfile and os.path.exists(os.path.expanduser(rcfile)):
