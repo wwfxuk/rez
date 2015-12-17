@@ -4,7 +4,8 @@ _rez_complete_fn()
     COMPREPLY=$(COMP_LINE=${COMP_LINE} COMP_POINT=${COMP_POINT} _rez-complete)
 }
 
-complete -F _rez_complete_fn rez
+# Use bashrc completion
+#complete -F _rez_complete_fn rez
 complete -F _rez_complete_fn rezolve
 complete -F _rez_complete_fn rez-bind
 complete -F _rez_complete_fn rez-build
