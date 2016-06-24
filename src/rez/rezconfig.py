@@ -107,7 +107,7 @@ resource_caching_maxsize = -1
 # Uris of running memcached server(s) to use as a file and resolve cache. For
 # example, the uri "127.0.0.1:11211" points to memcached running on localhost on
 # its default port. Must be either null, or a list of strings.
-memcached_uri = []
+memcached_uri = ["localhost:11211"]
 
 # Bytecount beyond which memcached entries are compressed, for cached package
 # files (such as package.yaml, package.py). Zero means never compress.
