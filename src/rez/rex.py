@@ -200,6 +200,7 @@ class ActionManager(object):
         """
         return self.get_action_methods() + [
             ('getenv', self.getenv),
+            ('expandvars', self.expandvars),
             ('defined', self.defined),
             ('undefined', self.undefined)]
 
@@ -248,6 +249,11 @@ class ActionManager(object):
 
     def defined(self, key):
         return not self.undefined(key)
+
+    def expandvars(self, value, format=True):
+        if format:
+            value = str(self._format(value))
+        return str(self._expand(value))
 
     def getenv(self, key):
         _, expanded_key = self._key(key)
@@ -1208,3 +1214,19 @@ class RexExecutor(object):
         else:
             raise RexError("Error in rex code: %s - %s\n%s"
                            % (e.__class__.__name__, str(e), stack))
+
+
+# Copyright 2013-2016 Allan Johns.
+#
+# This library is free software: you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation, either
+# version 3 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library.  If not, see <http://www.gnu.org/licenses/>.
