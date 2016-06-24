@@ -380,7 +380,9 @@ class VariantResourceHelper(VariantResource):
                 raise ResourceError(
                     "Unexpected error - variant %s cannot be found in its "
                     "parent package %s" % (self.uri, self.parent.uri))
-
+            ## MIKROS: Some packages have an empty variant (python)
+            if not reqs:
+                return None
             dirs = [x.safe_str() for x in reqs]
             subpath = os.path.join(*dirs)
             return subpath
