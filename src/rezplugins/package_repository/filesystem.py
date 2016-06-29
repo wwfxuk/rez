@@ -571,7 +571,9 @@ class FileSystemPackageRepository(PackageRepository):
                 continue
             path = os.path.join(root, name)
             if os.path.isdir(path):
-                dirs.append(name)
+                files = os.listdir(path)
+                if 'package.py' in files:
+                    dirs.append(name)
         return dirs
 
     def _get_families(self):

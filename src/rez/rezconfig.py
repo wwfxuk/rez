@@ -87,17 +87,28 @@ bind_module_path = []
 # Cache resolves to memcached, if enabled. Note that these cache entries will be
 # correctly invalidated if, for example, a newer package version is released that
 # would change the result of an existing resolve.
-resolve_caching = True
+import os
+if os.environ.get('REZ_USE_MEMCACHED'):
+    print('Use caching')
+    resolve_caching = True
+else:
+    resolve_caching = False
 
 # Cache package file reads to memcached, if enabled. Updated package files will
 # still be read correctly (ie, the cache invalidates when the filesystem
 # changes).
-cache_package_files = True
+if os.environ.get('REZ_USE_MEMCACHED'):
+    cache_package_files = True
+else:
+    cache_package_files = False
 
 # Cache directory traversals to memcached, if enabled. Updated directory entries
 # will still be read correctly (ie, the cache invalidates when the filesystem
 # changes).
-cache_listdir = True
+if os.environ.get('REZ_USE_MEMCACHED'):
+    cache_listdir = True
+else:
+    cache_listdir = False
 
 # The size of the local (in-process) resource cache. Resources include package
 # families, packages and variants. A value of 0 disables caching; -1 sets a cache
