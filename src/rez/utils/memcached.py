@@ -6,6 +6,7 @@ from functools import update_wrapper
 from inspect import getargspec, isgeneratorfunction
 from hashlib import md5
 from uuid import uuid4
+import os
 
 
 # this version should be changed if and when the caching interface changes
@@ -75,8 +76,28 @@ class Client(object):
         if not self.servers:
             return
 
+        ## MIKROS
+        ## Skip local packages and prod packages
+        tupleKey = eval(key)
+        if tupleKey[0] == 'package_file':
+
+            package_file = tupleKey[1]
+            devPackageRoot = os.path.realpath(os.environ.get('REZ_DEV_PACKAGES_ROOT'))
+            prodPackagePath = os.environ.get('REZ_PROD_PACKAGES_PATH')
+            if package_file:
+                if devPackageRoot and package_file.startswith(devPackageRoot):
+                    return
+                if prodPackagePath and package_file.startswith(prodPackagePath):
+                    return
+
         key = self._qualified_key(key)
         hashed_key = self.key_hasher(key)
+
+        # Pop all custom functions
+        if isinstance(val, dict):
+            for key in val.copy():
+                if not 'commands' in key:
+                    val.pop(key)
         val = (key, val)
 
         self.client.set(key=hashed_key,
