@@ -27,6 +27,7 @@ package_key_order = [
     'commands',
     'pre_commands',
     'post_commands',
+    'post_install',
     'help',
     'config',
     'uuid',
@@ -64,6 +65,7 @@ package_serialise_schema = Schema({
     Optional('pre_commands'):           source_code_schema,
     Optional('commands'):               source_code_schema,
     Optional('post_commands'):          source_code_schema,
+    #Optional('post_install'):           source_code_schema,
 
     Optional("help"):                   help_schema,
     Optional("uuid"):                   basestring,
@@ -126,7 +128,7 @@ def _commented_old_command_annotations(sourcecode):
 def _dump_package_data_yaml(items, buf):
     for i, (key, value) in enumerate(items):
         if isinstance(value, SourceCode) \
-                and key in ("commands", "pre_commands", "post_commands"):
+                and key in ("commands", "pre_commands", "post_commands", "post_install"):
             value = _commented_old_command_annotations(value)
 
         d = {key: value}
@@ -150,7 +152,7 @@ def _dump_package_data_py(items, buf):
             txt = "with scope('config') as config:\n%s" % indent(attrs_txt)
         elif isinstance(value, SourceCode):
             # source code becomes a python function
-            if key in ("commands", "pre_commands", "post_commands"):
+            if key in ("commands", "pre_commands", "post_commands", "post_install"):
                 value = _commented_old_command_annotations(value)
             # don't indent code if already indented
             source = value.source if value.source[0] in (' ', '\t') else indent(value.source)

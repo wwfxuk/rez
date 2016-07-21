@@ -152,8 +152,10 @@ def load_py(stream, filepath=None):
 
     def _process_objects(data):
         for k, v in data.iteritems():
+            ## MIKROS ====================
             if k not in ['pre_commands', 'commands', 'post_commands']:
                 continue
+            ## END MIKROS ================
             if isfunction(v):
                 data[k] = SourceCode.from_function(v)
             elif isinstance(v, dict):

@@ -6,12 +6,27 @@ from rez.exceptions import RexError
 from collections import MutableMapping
 from inspect import getsourcelines, getargspec
 from threading import Lock
-from textwrap import dedent
-
+## MIKROS ====================
+from textwrap import dedent, _whitespace_only_re
+import re
+## END MIKROS ================
 
 class _Missing: pass
 _missing = _Missing()
 
+_leading_hashtag_re = re.compile('(^[ \t]*#.*$)', re.MULTILINE)
+
+## MIKROS ====================
+def uncomment(text):
+    """ Remove all lines starting with a # from code
+
+    :param text: Text to clean
+    :return: Clean text without comments
+    """
+    text = _whitespace_only_re.sub('', text)
+    textNoComment = _leading_hashtag_re.sub('', text)
+    return textNoComment
+## END MIKROS ===============
 
 class SourceCode(object):
     """Very simple wrapper for python source code."""
@@ -20,15 +35,22 @@ class SourceCode(object):
 
     @classmethod
     def from_function(cls, func):
+
         argspec = getargspec(func)
+        ## MIKROS: To make post_install work ====================
+        """
         if argspec.args or argspec.varargs or argspec.keywords:
             raise RexError('top level functions in python rez package files '
                            'cannot take any arguments: %s' % func.__name__)
-
+        """
+        ## END MIKROS ================
         # now that we've verified that the func takes no args, can strip out
         # the first line of the sourcecode, with the argspec of the func...
         loc = getsourcelines(func)[0][1:]
-        code = dedent(''.join(loc))
+        ## MIKROS: Because somme comments starts at first line char ====================
+        code = uncomment(''.join(loc))
+        code = dedent(code)
+        ## END MIKROS ================
 
         # align lines that start with a comment (#)
         codelines = code.split('\n')
@@ -187,11 +209,11 @@ class AttrDictWrapper(MutableMapping):
             d = self.__dict__
         else:
             d = self._data
-        try:
-            return d[attr]
-        except KeyError:
-            raise AttributeError("'%s' object has no attribute '%s'"
-                                 % (self.__class__.__name__, attr))
+        ## MIKROS ====================
+        if attr not in d:
+            self._data.__createitem__(attr)
+        return d[attr]
+        ## END MIKROS ================
 
     def __setattr__(self, attr, value):
         # For things like '__class__', for instance
