@@ -139,7 +139,9 @@ class VariantSelectMode(Enum):
     """Variant selection mode."""
     version_priority = 0
     intersection_priority = 1
-
+    ## MIKROS: Keep previous variant order ================
+    default_priority = 2
+    ## END MIKROS ================
 
 class SolverStatus(Enum):
     """Enum to represent the current state of a solver instance.  The enum
@@ -481,6 +483,9 @@ class _PackageEntry(object):
         - sort by highest number of packages shared with request;
         - THEN sort according to version_priority
 
+        default_priority:
+        - don't sort
+
         Note:
             In theory 'variant.index' should never factor into the sort unless
             two variants are identical (which shouldn't happen) - this is just
@@ -490,37 +495,44 @@ class _PackageEntry(object):
         if self.sorted:
             return
 
+        ## MIKROS: Keep previous variant order ================
         def key(variant):
             requested_key = []
             names = set()
 
-            for i, request in enumerate(self.solver.request_list):
-                if not request.conflict:
-                    req = variant.requires_list.get(request.name)
-                    if req is not None:
-                        requested_key.append((-i, req.range))
-                        names.add(req.name)
+            if config.variant_select_mode != VariantSelectMode.default_priority:
+                for i, request in enumerate(self.solver.request_list):
+                    if not request.conflict:
+                        req = variant.requires_list.get(request.name)
+                        if req is not None:
+                            requested_key.append((-i, req.range))
+                            names.add(req.name)
 
-            additional_key = []
-            for request in variant.requires_list:
-                if not request.conflict and request.name not in names:
-                    additional_key.append((request.range, request.name))
+                additional_key = []
+                for request in variant.requires_list:
+                    if not request.conflict and request.name not in names:
+                        additional_key.append((request.range, request.name))
 
             if config.variant_select_mode == VariantSelectMode.version_priority:
                 k = (requested_key,
                      -len(additional_key),
                      additional_key,
                      variant.index)
-            else:  # VariantSelectMode.intersection_priority
+            elif config.variant_select_mode == VariantSelectMode.intersection_priority:
                 k = (len(requested_key),
                      requested_key,
                      -len(additional_key),
                      additional_key,
                      variant.index)
+            else: # VariantSelectMode.default_priority:
+                k = None
 
             return k
 
+        ## This test doesn't work...
+        # if config.variant_select_mode != VariantSelectMode.default_priority:
         self.variants.sort(key=key, reverse=True)
+        ## END MIKROS ================
         self.sorted = True
 
 

@@ -6,8 +6,10 @@ from functools import update_wrapper
 from inspect import getargspec, isgeneratorfunction
 from hashlib import md5
 from uuid import uuid4
+## MIKROS ====================
 import os
-
+from types import ModuleType
+## END MIKROS ================
 
 # this version should be changed if and when the caching interface changes
 cache_interface_version = 1
@@ -76,7 +78,7 @@ class Client(object):
         if not self.servers:
             return
 
-        ## MIKROS
+        ## MIKROS ====================
         ## Skip local packages and prod packages
         tupleKey = eval(key)
         if tupleKey[0] == 'package_file':
@@ -89,21 +91,36 @@ class Client(object):
                     return
                 if prodPackagePath and package_file.startswith(prodPackagePath):
                     return
+        ## END MIKROS ================
 
         key = self._qualified_key(key)
         hashed_key = self.key_hasher(key)
 
+        ## MIKROS ====================
         # Pop all custom functions
         if isinstance(val, dict):
-            for key in val.copy():
-                if not 'commands' in key:
-                    val.pop(key)
+            for k, v in val.copy().iteritems():
+                # Skip utils function other than the ones known by rez
+                if hasattr(v, '__call__') and not k.endswith('commands'):
+                    val.pop(k)
+                # Skip isolated module imports
+                elif isinstance(v, ModuleType):
+                    val.pop(k)
+        ## END MIKROS ================
         val = (key, val)
 
-        self.client.set(key=hashed_key,
-                        val=val,
-                        time=time,
-                        min_compress_len=min_compress_len)
+        ## MIKROS ====================
+        try:
+            self.client.set(key=hashed_key,
+                            val=val,
+                            time=time,
+                            min_compress_len=min_compress_len)
+        except:
+            print('=== {0} ==='.format(key))
+            print(val)
+            import traceback
+            traceback.print_exc()
+        ## END MIKROS ================
         self.logger("SET: %s", key)
 
     def get(self, key):

@@ -35,6 +35,7 @@ package_schema = Schema({
     Optional('pre_commands'):           _commands_schema,
     Optional('commands'):               _commands_schema,
     Optional('post_commands'):          _commands_schema,
+    #Optional('post_install'):           _commands_schema,
 
     Optional('custom'):                 dict,
 
