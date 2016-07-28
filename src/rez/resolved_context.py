@@ -1137,7 +1137,7 @@ class ResolvedContext(object):
         """
         sh = create_shell(shell)
 
-        ## MIKROS ====================
+        ## MIKROS: Blacklisted env variables ====================
         if parent_environ is None:
             # Remove blacklisted env var from parent environment
             parent_environ = {}

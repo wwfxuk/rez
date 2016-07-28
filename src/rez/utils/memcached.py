@@ -6,7 +6,7 @@ from functools import update_wrapper
 from inspect import getargspec, isgeneratorfunction
 from hashlib import md5
 from uuid import uuid4
-## MIKROS ====================
+## MIKROS: Don't crash on imported modules outside functions ====================
 import os
 from types import ModuleType
 ## END MIKROS ================
@@ -78,13 +78,43 @@ class Client(object):
         if not self.servers:
             return
 
-        ## MIKROS ====================
-        ## Skip local packages and prod packages
+        ## MIKROS: Skip local and prod packages ====================
         tupleKey = eval(key)
+        ## END MIKROS ================
+
+        key = self._qualified_key(key)
+        hashed_key = self.key_hasher(key)
+
+        ## MIKROS: Manage other functions in package.py ====================
+
+        # Pop all custom functions
+        if isinstance(val, dict):
+            for k, v in val.copy().iteritems():
+                # Skip post_install function other than the ones known by rez
+                if k in ['post_install']:
+                    val.pop(k)
+                # Skip isolated module imports
+                elif isinstance(v, ModuleType):
+                    val.pop(k)
+            # Add other function code in commands
+            for com in ['pre_commands', 'commands', 'post_commands']:
+                if com in val:
+                    for k, v in val.iteritems():
+                        if k in val[com].source:
+                            if v.__class__.__name__ == 'SourceCode' and not k.endswith('commands'):
+                                val[com].source = '\n'.join([v.code,
+                                                             '',
+                                                             val[com].source])
+
+        ## END MIKROS ================
+        val = (key, val)
+
+        ## MIKROS: Don't local and prod packages in cache ====================
         if tupleKey[0] == 'package_file':
 
             package_file = tupleKey[1]
-            devPackageRoot = os.path.realpath(os.environ.get('REZ_DEV_PACKAGES_ROOT'))
+            devPackageRoot = os.path.realpath(
+                os.environ.get('REZ_DEV_PACKAGES_ROOT'))
             prodPackagePath = os.environ.get('REZ_PROD_PACKAGES_PATH')
             if package_file:
                 if devPackageRoot and package_file.startswith(devPackageRoot):
@@ -93,30 +123,14 @@ class Client(object):
                     return
         ## END MIKROS ================
 
-        key = self._qualified_key(key)
-        hashed_key = self.key_hasher(key)
-
-        ## MIKROS ====================
-        # Pop all custom functions
-        if isinstance(val, dict):
-            for k, v in val.copy().iteritems():
-                # Skip utils function other than the ones known by rez
-                if hasattr(v, '__call__') and not k.endswith('commands'):
-                    val.pop(k)
-                # Skip isolated module imports
-                elif isinstance(v, ModuleType):
-                    val.pop(k)
-        ## END MIKROS ================
-        val = (key, val)
-
-        ## MIKROS ====================
+        ## MIKROS: Traceback to have concerned package ====================
         try:
             self.client.set(key=hashed_key,
                             val=val,
                             time=time,
                             min_compress_len=min_compress_len)
         except:
-            print('=== {0} ==='.format(key))
+            print('=== val ===')
             print(val)
             import traceback
             traceback.print_exc()

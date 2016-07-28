@@ -6,7 +6,7 @@ from rez.exceptions import RexError
 from collections import MutableMapping
 from inspect import getsourcelines, getargspec
 from threading import Lock
-## MIKROS ====================
+## MIKROS: Remove comments before dedent ====================
 from textwrap import dedent, _whitespace_only_re
 import re
 ## END MIKROS ================
@@ -16,7 +16,7 @@ _missing = _Missing()
 
 _leading_hashtag_re = re.compile('(^[ \t]*#.*$)', re.MULTILINE)
 
-## MIKROS ====================
+## MIKROS: Remove comments before dedent ====================
 def uncomment(text):
     """ Remove all lines starting with a # from code
 
@@ -32,6 +32,9 @@ class SourceCode(object):
     """Very simple wrapper for python source code."""
     def __init__(self, source):
         self.source = source.rstrip()
+        ## MIKROS: Needed for package utility functions ================
+        self.code = None
+        ## END MIKROS ================
 
     @classmethod
     def from_function(cls, func):
@@ -46,7 +49,9 @@ class SourceCode(object):
         ## END MIKROS ================
         # now that we've verified that the func takes no args, can strip out
         # the first line of the sourcecode, with the argspec of the func...
-        loc = getsourcelines(func)[0][1:]
+        ## MIKROS: Needed for package utility functions ================
+        wholeCode = getsourcelines(func)[0]
+        loc = wholeCode[1:]
         ## MIKROS: Because somme comments starts at first line char ====================
         code = uncomment(''.join(loc))
         code = dedent(code)
@@ -70,6 +75,9 @@ class SourceCode(object):
 
         value = SourceCode.__new__(SourceCode)
         value.source = code
+        ## MIKROS: Needed for package utility functions ================
+        value.code = '\n'.join(wholeCode)
+        ## END MIKROS ================
         return value
 
     def corrected_for_indent(self):
@@ -209,7 +217,7 @@ class AttrDictWrapper(MutableMapping):
             d = self.__dict__
         else:
             d = self._data
-        ## MIKROS ====================
+        ## MIKROS: Test VAR in env ====================
         if attr not in d:
             self._data.__createitem__(attr)
         return d[attr]

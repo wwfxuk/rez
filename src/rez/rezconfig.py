@@ -87,7 +87,7 @@ bind_module_path = []
 # Cache resolves to memcached, if enabled. Note that these cache entries will be
 # correctly invalidated if, for example, a newer package version is released that
 # would change the result of an existing resolve.
-## MIKROS ====================
+## MIKROS: Add REZ_USE_MEMCACHED env variable ====================
 import os
 if int(os.environ.get('REZ_USE_MEMCACHED', 0)):
     print('Use caching')
@@ -110,7 +110,7 @@ if int(os.environ.get('REZ_USE_MEMCACHED', 0)):
     cache_listdir = True
 else:
     cache_listdir = False
-## ENd MIKROS =================
+## END MIKROS =================
 
 # The size of the local (in-process) resource cache. Resources include package
 # families, packages and variants. A value of 0 disables caching; -1 sets a cache
@@ -120,7 +120,7 @@ resource_caching_maxsize = -1
 # Uris of running memcached server(s) to use as a file and resolve cache. For
 # example, the uri "127.0.0.1:11211" points to memcached running on localhost on
 # its default port. Must be either null, or a list of strings.
-## MIKROS ====================
+## MIKROS: Add REZ_MEMCACHED_URI env variable ====================
 memcached_uri = ["{0}:11211".format(os.environ.get('REZ_MEMCACHED_URI', 'localhost'))]
 ## END MIKROS ================
 
@@ -241,7 +241,7 @@ allow_unversioned_packages = False
 parent_variables = []
 all_parent_variables = False
 
-## MIKROS ====================
+## MIKROS: Blacklisted env variables ====================
 # Variables that MUST not be propagated into rez environment even if no package modifies them
 blacklisted_parent_variables = ['PYTHONHOME', 'PYTHONPATH', 'PYTHONSTARTUP', 'LD_LIBRARY_PATH'] 
 ## END MIKROS ================
@@ -440,7 +440,7 @@ dot_image_format = "png"
 # the set of characters that are normally prefixed/suffixed to the prompt, ie
 # '>', '>>' etc.
 # set_prompt = True
-## MIKROS ====================
+## MIKROS: Set prompt ====================
 set_prompt = False
 ## END MIKROS ================
 

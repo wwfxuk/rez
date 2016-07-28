@@ -81,7 +81,7 @@ class Bash(SH):
 
     def _bind_interactive_rez(self):
         super(Bash, self)._bind_interactive_rez()
-        ## MIKROS ====================
+        ## MIKROS: Don't want this completion ====================
         #completion = os.path.join(module_root_path, "completion", "complete.sh")
         #self.source(completion)
         ## END MIKROS ================

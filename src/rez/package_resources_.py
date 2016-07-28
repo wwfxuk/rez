@@ -74,7 +74,7 @@ package_base_schema_dict.update({
     Optional('pre_commands'):           SourceCode,
     Optional('commands'):               SourceCode,
     Optional('post_commands'):          SourceCode,
-    ## MIKROS ====================
+    ## MIKROS: Manage post_install ====================
     Optional('post_install'):           SourceCode,
     ## END MIKROS ================
 
@@ -314,7 +314,7 @@ class PackageResourceHelper(PackageResource):
     def post_commands(self):
         return self._convert_to_rex(self._post_commands)
 
-    ## MIKROS ====================
+    ## MIKROS: Manage post_install ====================
     @cached_property
     def post_install(self):
         return self._convert_to_rex(self._post_install)
@@ -391,7 +391,7 @@ class VariantResourceHelper(VariantResource):
                     "Unexpected error - variant %s cannot be found in its "
                     "parent package %s" % (self.uri, self.parent.uri))
             dirs = [x.safe_str() for x in reqs]
-            ## MIKROS ====================
+            ## MIKROS: No-folder variant (python) ====================
             subpath = os.path.join(*dirs) if dirs else ''
             ## END MIKROS ================
             return subpath
@@ -402,7 +402,7 @@ class VariantResourceHelper(VariantResource):
         elif self.index is None:
             return self.base
         else:
-            ## MIKROS ====================
+            ## MIKROS: No-folder variant ====================
             root = os.path.join(self.base, self.subpath) if self.subpath else self.base
             ## END MIKROS ================
             return root

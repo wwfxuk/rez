@@ -61,7 +61,7 @@ class VersionBinding(Binding):
     def patch(self):
         return self[2]
 
-    ## MIKROS ====================
+    ## MIKROS: Add raw and full versions ====================
     @property
     def raw(self):
         """Raw string version."""

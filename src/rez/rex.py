@@ -368,7 +368,7 @@ class ActionManager(object):
 
     def alias(self, key, value):
         key = str(self._format(key))
-        ## MIKROS ====================
+        ## MIKROS: Alias value is a list ====================
         if isinstance(value, list):
             value = ' '.join([str(self._format(item)) for item in value])
         else:
@@ -925,18 +925,18 @@ class EnvironmentDict(UserDict.DictMixin):
 
     def __getitem__(self, key):
         if key not in self._var_cache:
-            ## MIKROS ====================
+            ## MIKROS: Test VAR in env ====================
             raise KeyError(key)
             ## END MIKROS ================
         return self._var_cache[key]
 
-    ## MIKROS ====================
+    ## MIKROS: Test VAR in env ====================
     def __createitem__(self, key):
         self._var_cache[key] = EnvironmentVariable(key, self)
     ## end MIKROS ================
 
     def __setitem__(self, key, value):
-        ## MIKROS ====================
+        ## MIKROS: Test VAR in env ====================
         if key not in self._var_cache:
             self.__createitem__(key)
         ## ENd MIKROS ================

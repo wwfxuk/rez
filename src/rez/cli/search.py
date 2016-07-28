@@ -155,7 +155,7 @@ def command(opts, parser, extra_arg_groups=None):
                 except error_class as e:
                     _handle(e)
                     break
-                ## MIKROS ====================
+                ## MIKROS: Handle other errors when parsing package ====================
                 except:
                     print("Package can't be parsed.")
                     break
