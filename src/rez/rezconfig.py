@@ -87,17 +87,29 @@ bind_module_path = []
 # Cache resolves to memcached, if enabled. Note that these cache entries will be
 # correctly invalidated if, for example, a newer package version is released that
 # would change the result of an existing resolve.
-resolve_caching = True
+## MIKROS: Add REZ_USE_MEMCACHED env variable ====================
+import os
+if int(os.environ.get('REZ_USE_MEMCACHED', 0)):
+    resolve_caching = True
+else:
+    resolve_caching = False
 
 # Cache package file reads to memcached, if enabled. Updated package files will
 # still be read correctly (ie, the cache invalidates when the filesystem
 # changes).
-cache_package_files = True
+if int(os.environ.get('REZ_USE_MEMCACHED', 0)):
+    cache_package_files = True
+else:
+    cache_package_files = False
 
 # Cache directory traversals to memcached, if enabled. Updated directory entries
 # will still be read correctly (ie, the cache invalidates when the filesystem
 # changes).
-cache_listdir = True
+if int(os.environ.get('REZ_USE_MEMCACHED', 0)):
+    cache_listdir = True
+else:
+    cache_listdir = False
+## END MIKROS =================
 
 # The size of the local (in-process) resource cache. Resources include package
 # families, packages and variants. A value of 0 disables caching; -1 sets a cache
@@ -107,7 +119,9 @@ resource_caching_maxsize = -1
 # Uris of running memcached server(s) to use as a file and resolve cache. For
 # example, the uri "127.0.0.1:11211" points to memcached running on localhost on
 # its default port. Must be either null, or a list of strings.
-memcached_uri = []
+## MIKROS: Add REZ_MEMCACHED_URI env variable ====================
+memcached_uri = ["{0}:11211".format(os.environ.get('REZ_MEMCACHED_URI', 'localhost'))]
+## END MIKROS ================
 
 # Bytecount beyond which memcached entries are compressed, for cached package
 # files (such as package.yaml, package.py). Zero means never compress.
@@ -193,7 +207,10 @@ prune_failed_graph = True
 # However, intersection_priority mode will pick the second variant,
 # ["bar-2.8", "burgle-1.0"], because it contains more packages that were in the
 # original request (burgle).
-variant_select_mode = "version_priority"
+## MIKROS: Keep previous variant order ================
+# - default_priority: use order in package;
+variant_select_mode = "default_priority"
+## END MIKROS ================
 
 # Package filter. One or more filters can be listed, each with a list of
 # exclusion and inclusion rules. These filters are applied to each package
@@ -244,7 +261,7 @@ package_filter = None
 
 # If True, unversioned packages are allowed. Solve times are slightly better if
 # this value is False.
-allow_unversioned_packages = True
+allow_unversioned_packages = False
 
 
 ###############################################################################
@@ -265,6 +282,11 @@ allow_unversioned_packages = True
 # incorrect behaviour within a resolved environment.
 parent_variables = []
 all_parent_variables = False
+
+## MIKROS: Blacklisted env variables ====================
+# Variables that MUST not be propagated into rez environment even if no package modifies them
+blacklisted_parent_variables = ['PYTHONHOME', 'PYTHONPATH', 'PYTHONSTARTUP', 'LD_LIBRARY_PATH']
+## END MIKROS ================
 
 # When two or more packages in a resolve attempt to set the same environment
 # variable, Rez's default behaviour is to flag this as a conflict and abort the
@@ -460,7 +482,10 @@ dot_image_format = "png"
 # probably want to use the environment variable $REZ_ENV_PROMPT, which contains
 # the set of characters that are normally prefixed/suffixed to the prompt, ie
 # '>', '>>' etc.
-set_prompt = True
+# set_prompt = True
+## MIKROS: Set prompt ====================
+set_prompt = False
+## END MIKROS ================
 
 # If true, prefixes the prompt, suffixes if false. Ignored if 'set_prompt' is
 # false.

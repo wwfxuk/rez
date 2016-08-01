@@ -574,8 +574,11 @@ class FileSystemPackageRepository(PackageRepository):
             if name.startswith('.'):
                 continue
             path = os.path.join(root, name)
-            if os.path.isdir(path):
-                dirs.append(name)
+            ## MIKROS: Don't list folders with no package ====================
+            if (os.path.isfile(os.path.join(path, 'package.py')) or
+                os.path.isfile(os.path.join(path, 'package.yaml'))):
+                    dirs.append(name)
+            ## END MIKROS ================
         return dirs
 
     def _get_families(self):

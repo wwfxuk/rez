@@ -1144,6 +1144,15 @@ class ResolvedContext(object):
         """
         sh = create_shell(shell)
 
+        ## MIKROS: Blacklisted env variables ====================
+        if parent_environ is None:
+            # Remove blacklisted env var from parent environment
+            parent_environ = {}
+            for (k, v) in os.environ.iteritems(): 
+                if k not in config.blacklisted_parent_variables:
+                    parent_environ[k] = v
+        ## END MIKROS ================
+
         if hasattr(command, "__iter__"):
             command = sh.join(command)
 

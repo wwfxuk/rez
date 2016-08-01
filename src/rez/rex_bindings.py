@@ -61,6 +61,18 @@ class VersionBinding(Binding):
     def patch(self):
         return self[2]
 
+    ## MIKROS: Add raw and full versions ====================
+    @property
+    def raw(self):
+        """Raw string version."""
+        return str(self.__version)
+
+    @property
+    def full(self):
+        """Full version as a tuple (major, minor, patch)."""
+        return (str(self.major), str(self.minor), str(self.patch))
+    ## ENd MIKROS ================
+
     def as_tuple(self):
         return self[:len(self)]
 

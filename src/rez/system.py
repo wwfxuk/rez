@@ -218,7 +218,8 @@ class System(object):
         """Return True if this is a production rez install."""
         return bool(self.rez_bin_path)
 
-    def get_summary_string(self):
+    @staticmethod ## MIKROS: Make it static =========
+    def get_summary_string():
         """Get a string summarising the state of Rez as a whole.
 
         Returns:
@@ -230,7 +231,8 @@ class System(object):
         txt += "\n\n%s" % plugin_manager.get_summary_string()
         return txt
 
-    def clear_caches(self, hard=False):
+    @staticmethod ## MIKROS: Make it static =========
+    def clear_caches(hard=False):
         """Clear all caches in Rez.
 
         Rez caches package contents and iteration during a python session. Thus
@@ -251,8 +253,8 @@ class System(object):
             with memcached_client() as client:
                 client.flush()
 
-    @classmethod
-    def _make_safe_version_string(cls, s):
+    @staticmethod ## MIKROS: Make it static =========
+    def _make_safe_version_string(s):
         sep_regex = re.compile("[\.\-]")
         char_regex = re.compile("[a-zA-Z0-9_]")
 

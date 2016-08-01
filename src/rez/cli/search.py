@@ -155,6 +155,11 @@ def command(opts, parser, extra_arg_groups=None):
                 except error_class as e:
                     _handle(e)
                     break
+                ## MIKROS: Handle other errors when parsing package ====================
+                except:
+                    print("Package can't be parsed.")
+                    break
+                ## END MIKROS ================
                 if opts.no_newlines:
                     line_ = line_.replace('\n', "\\n")
 

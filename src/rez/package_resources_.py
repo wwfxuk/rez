@@ -74,6 +74,9 @@ package_base_schema_dict.update({
     Optional('pre_commands'):           SourceCode,
     Optional('commands'):               SourceCode,
     Optional('post_commands'):          SourceCode,
+    ## MIKROS: Manage post_install ====================
+    Optional('post_install'):           SourceCode,
+    ## END MIKROS ================
 
     # release info
     Optional("timestamp"):              int,
@@ -310,6 +313,12 @@ class PackageResourceHelper(PackageResource):
     def post_commands(self):
         return self._convert_to_rex(self._post_commands)
 
+    ## MIKROS: Manage post_install ====================
+    @cached_property
+    def post_install(self):
+        return self._convert_to_rex(self._post_install)
+    ## END MIKROS ================
+
     def iter_variants(self):
         num_variants = len(self._data.get("variants", []))
         if num_variants == 0:
@@ -376,7 +385,9 @@ class VariantResourceHelper(VariantResource):
         else:
             reqs = self.variant_requires
             dirs = [x.safe_str() for x in reqs]
-            subpath = os.path.join(*dirs)
+            ## MIKROS: No-folder variant (python) ====================
+            subpath = os.path.join(*dirs) if dirs else ''
+            ## END MIKROS ================
             return subpath
 
     def _root(self):
@@ -385,7 +396,9 @@ class VariantResourceHelper(VariantResource):
         elif self.index is None:
             return self.base
         else:
-            root = os.path.join(self.base, self.subpath)
+            ## MIKROS: No-folder variant ====================
+            root = os.path.join(self.base, self.subpath) if self.subpath else self.base
+            ## END MIKROS ================
             return root
 
     @cached_property

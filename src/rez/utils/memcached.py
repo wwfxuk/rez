@@ -6,7 +6,10 @@ from functools import update_wrapper
 from inspect import getargspec, isgeneratorfunction
 from hashlib import md5
 from uuid import uuid4
-
+## MIKROS: Don't crash on imported modules outside functions ====================
+import os
+from types import ModuleType
+## END MIKROS ================
 
 # this version should be changed if and when the caching interface changes
 cache_interface_version = 1
@@ -75,14 +78,63 @@ class Client(object):
         if not self.servers:
             return
 
+        ## MIKROS: Skip local and prod packages ====================
+        tupleKey = eval(key)
+        ## END MIKROS ================
+
         key = self._qualified_key(key)
         hashed_key = self.key_hasher(key)
+
+        ## MIKROS: Manage other functions in package.py ====================
+
+        # Pop all custom functions
+        if isinstance(val, dict):
+            for k, v in val.copy().iteritems():
+                # Skip post_install function other than the ones known by rez
+                if k in ['post_install']:
+                    val.pop(k)
+                # Skip isolated module imports
+                elif isinstance(v, ModuleType):
+                    val.pop(k)
+            # Add other function code in commands
+            for com in ['pre_commands', 'commands', 'post_commands']:
+                if com in val:
+                    for k, v in val.iteritems():
+                        if k in val[com].source:
+                            if v.__class__.__name__ == 'SourceCode' and not k.endswith('commands'):
+                                val[com].source = '\n'.join([v.code,
+                                                             '',
+                                                             val[com].source])
+
+        ## END MIKROS ================
         val = (key, val)
 
-        self.client.set(key=hashed_key,
-                        val=val,
-                        time=time,
-                        min_compress_len=min_compress_len)
+        ## MIKROS: Don't local and prod packages in cache ====================
+        if tupleKey[0] == 'package_file':
+
+            package_file = tupleKey[1]
+            devPackageRoot = os.path.realpath(
+                os.environ.get('REZ_DEV_PACKAGES_ROOT'))
+            prodPackagePath = os.environ.get('REZ_PROD_PACKAGES_PATH')
+            if package_file:
+                if devPackageRoot and package_file.startswith(devPackageRoot):
+                    return
+                if prodPackagePath and package_file.startswith(prodPackagePath):
+                    return
+        ## END MIKROS ================
+
+        ## MIKROS: Traceback to have concerned package ====================
+        try:
+            self.client.set(key=hashed_key,
+                            val=val,
+                            time=time,
+                            min_compress_len=min_compress_len)
+        except:
+            print('=== val ===')
+            print(val)
+            import traceback
+            traceback.print_exc()
+        ## END MIKROS ================
         self.logger("SET: %s", key)
 
     def get(self, key):

@@ -217,6 +217,9 @@ config_schema = Schema({
     "implicit_packages":                            StrList,
     "platform_map":                                 OptionalDict,
     "parent_variables":                             StrList,
+    ## MIKROS: Blacklisted env variables ====================
+    "blacklisted_parent_variables":                 StrList,
+    ## END MIKROS ================
     "resetting_variables":                          StrList,
     "release_hooks":                                StrList,
     "critical_styles":                              OptionalStrList,
