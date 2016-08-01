@@ -89,7 +89,9 @@ class VersionBinding(Binding):
     def __getitem(self, i):
         def _convert(t):
             s = str(t)
-            if s.isdigit() and (s[0] != '0' or s == '0'):
+            ## MIKROS: To prevent crash on nuke package version (9.0.v8) ====================
+            if s.isdigit() and s[0] != '0':
+            ## END MIKROS ====================
                 return int(s)
             else:
                 return s
