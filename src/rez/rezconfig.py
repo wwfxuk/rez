@@ -90,7 +90,6 @@ bind_module_path = []
 ## MIKROS: Add REZ_USE_MEMCACHED env variable ====================
 import os
 if int(os.environ.get('REZ_USE_MEMCACHED', 0)):
-    print('Use caching')
     resolve_caching = True
 else:
     resolve_caching = False
