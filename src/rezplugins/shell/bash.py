@@ -54,6 +54,11 @@ class Bash(SH):
             path = os.getenv(envvar)
             if path and os.path.isfile(os.path.expanduser(path)):
                 files.append(path)
+            ## MIKROS: Source bashrc in one liners
+            bashrc = '~/.bashrc'
+            if bashrc not in files:
+                files.append(bashrc)
+            ## END MIKROS
         elif rcfile or norc:
             do_rcfile = True
             if rcfile and os.path.exists(os.path.expanduser(rcfile)):
