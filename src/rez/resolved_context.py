@@ -28,6 +28,8 @@ import sys
 import os
 import os.path
 
+DEFAULT_CALLBACKS = ["pre_commands", "commands", "post_commands"]
+
 
 class SuiteVisibility(Enum):
     """Defines what suites on $PATH stay visible when a context in a suite is
@@ -122,7 +124,7 @@ class ResolvedContext(object):
                  add_implicit_packages=True, max_fails=-1, time_limit=-1,
                  callback=None, package_load_callback=None, max_depth=None,
                  start_depth=None, max_level=None, buf=None,
-                 callbacks=["pre_commands", "commands", "post_commands"],
+                 callbacks=DEFAULT_CALLBACKS,
                  branch=None):
         """Perform a package resolve, and store the result.
 
@@ -1230,7 +1232,9 @@ class ResolvedContext(object):
             failure_description=self.failure_description,
             graph=self.graph(as_dot=True),
             solve_time=self.solve_time,
-            load_time=self.load_time)
+            load_time=self.load_time,
+            callbacks=self.callbacks,
+        )
 
     @classmethod
     def from_dict(cls, d, identifier_str=None):
@@ -1314,6 +1318,10 @@ class ResolvedContext(object):
 
         r.max_depth = d.get("max_depth", 0)
         r.start_depth = d.get("start_depth", 0)
+
+        # -- SINCE SERIALIZE VERSION mikros2.5.3
+
+        r.callbacks = d.get('callbacks', DEFAULT_CALLBACKS)
 
         return r
 
