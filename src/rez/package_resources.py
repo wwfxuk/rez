@@ -364,29 +364,21 @@ class VersionlessVariantResource(BaseVariantResource):
 class VersionedPackageResource(BasePackageResource):
     """A versioned package from a single file."""
     key = 'package.versioned'
-    path_pattern = 'package.{ext}'
+    path_pattern = 'package.py'
     parent_resource = PackageVersionFolder
-    variable_keys = ["ext"]
+    variable_keys = []
     variable_regex = dict(ext=_or_regex(metadata_loaders.keys()))
     versioned = True
 
     @classmethod
     def iter_instances(cls, parent_resource):
-        instances = []
-        for name in _listdir(parent_resource.path, cls.is_file):
-            match = _ResourcePathParser.parse_filepart(cls, name)
-            if match is not None:
-                variables = match[1]
-                variables.update(parent_resource.variables)
-                filepath = os.path.join(parent_resource.path, name)
-                instances.append(cls(filepath, variables))
-
-        if instances:
-            if len(instances) > 1:
-                ext_sort_order = ('py', 'yaml', 'txt')
-                instances.sort(
-                    key=lambda x: ext_sort_order.index(x.variables['ext']))
-            yield instances[0]
+        package_py = os.path.join(parent_resource.path, 'package.py')
+        if os.path.isfile(package_py):
+            resource = VersionedPackageResource(
+                package_py,
+                parent_resource.variables,
+            )
+            yield resource
 
     def convert_version(self, value):
         """Deals with two errors:
@@ -571,14 +563,14 @@ register_resource(VersionedPackageResource)
 register_resource(VersionedVariantResource)
 register_resource(VersionlessPackageResource)
 register_resource(VersionlessVariantResource)
-register_resource(ReleaseDataResource)
+# register_resource(ReleaseDataResource)
 register_resource(CombinedPackageFamilyResource)
 register_resource(CombinedPackageResource)
 # deprecated
-register_resource(MetadataFolder)
-register_resource(ReleaseTimestampResource)
-register_resource(ReleaseInfoResource)
-register_resource(ChangelogResource)
+# register_resource(MetadataFolder)
+# register_resource(ReleaseTimestampResource)
+# register_resource(ReleaseInfoResource)
+# register_resource(ChangelogResource)
 
 
 # -- development packages
