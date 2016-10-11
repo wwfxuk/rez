@@ -7,6 +7,7 @@ from rez.package_resources import package_schema, PACKAGE_NAME_REGEX
 from rez.config import config
 from rez.vendor.version.version import Version
 from rez.vendor.version.requirement import VersionedObject
+from rez.package_resources import VersionedPackageResource
 import os.path
 import sys
 
@@ -37,13 +38,59 @@ def iter_package_families(paths=None):
             root_resource_key="folder.packages_root"):
         yield PackageFamily(resource)
 
+# TODO bahh global
+_fixed_packages = {}
 
-def _iter_packages(name=None, paths=None):
+def merge_fixed_packages(fixed_packages):
+    global _fixed_packages
+    _fixed_packages = fixed_packages
+
+# TODO bahh global
+# cache value of dev paths for fast version of _iter_packages
+_dev_paths = None
+
+
+def _iter_packages(name=None, paths=None, include_dev=False):
     variables = {}
     if name is not None:
         variables["name"] = name
+
+    try:
+        fast_val = _fixed_packages[name]
+        root = fast_val['root']
+        base = os.path.join(root, name)
+        versions = fast_val['versions']
+        dev_versions = []
+        for version in versions:
+            pkg = Package(VersionedPackageResource(
+                os.path.join(base, version, 'package.py'),
+                {
+                    'ext': 'py',
+                    'version': version,
+                    'name': name,
+                    'search_path': root,
+                }
+            ))
+
+            yield pkg
+
+        # special case: if 'dev' is wanted, fetch it on the 
+        if 'dev' not in versions and include_dev:
+            # _dev_paths is cached
+            # TODO currently assumes given paths are always the same
+            global _dev_paths
+            if _dev_paths is None:
+                _dev_paths = [path for path in paths if path.startswith('/datas')]
+            paths = _dev_paths
+
+        else:
+            return
+
+    except KeyError:
+        pass
+
     for resource in iter_resources(
-            resource_keys='package.*',
+            resource_keys='package.versioned',
             search_path=paths,
             root_resource_key="folder.packages_root",
             variables=variables):
@@ -68,7 +115,8 @@ def iter_packages(name=None, range=None, paths=None):
         `Package` object iterator.
     """
     consumed = set()
-    for pkg in _iter_packages(name, paths):
+    include_dev = range is None or 'dev' in range
+    for pkg in _iter_packages(name, paths, include_dev=include_dev):
         handle = (pkg.name, pkg.version)
         if handle not in consumed:
             if range and pkg.version not in range:
