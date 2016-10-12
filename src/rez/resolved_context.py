@@ -1319,7 +1319,7 @@ class ResolvedContext(object):
         r.max_depth = d.get("max_depth", 0)
         r.start_depth = d.get("start_depth", 0)
 
-        # -- SINCE SERIALIZE VERSION mikros2.5.3
+        # -- SINCE SERIALIZE VERSION mikros2.6.0
 
         r.callbacks = d.get('callbacks', DEFAULT_CALLBACKS)
 

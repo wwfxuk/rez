@@ -9,6 +9,7 @@ from rez.vendor.version.version import Version
 from rez.vendor.version.requirement import VersionedObject
 from rez.package_resources import VersionedPackageResource
 import os.path
+from os import getenv
 import sys
 
 
@@ -38,29 +39,40 @@ def iter_package_families(paths=None):
             root_resource_key="folder.packages_root"):
         yield PackageFamily(resource)
 
-# TODO bahh global
-_fixed_packages = {}
 
-def merge_fixed_packages(fixed_packages):
+
+_fixed_packages = {}  # TODO bahh global
+def merge_fixed_packages(tomerge):
     global _fixed_packages
-    _fixed_packages = fixed_packages
+    for package_name, package_infos in tomerge.iteritems():
+        if not package_name in _fixed_packages:
+            _fixed_packages[package_name] = package_infos
 
-# TODO bahh global
+        else:
+            old_infos = _fixed_packages[packages_name]
+
+            # assert roots are the same
+            if old_infos['root'] != package_infos['root']:
+                # TODO use rez error stuff instead of a vanilia one
+                raise RuntimeError('Multiple fixed root paths found: %s != %s'
+                                   % (old_infos['root'], package_infos['root']))
+
+            # merge both version arrays: only keep versions in both
+            old_infos['versions'] = list( set(old_infos['versions']) & set(package_infos['root']) )
+
+
 # cache value of dev paths for fast version of _iter_packages
-_dev_paths = None
-
-
+_dev_paths = None  # TODO bahh global
 def _iter_packages(name=None, paths=None, include_dev=False):
     variables = {}
     if name is not None:
         variables["name"] = name
 
-    try:
+    if name in _fixed_packages:  # why would anyone use a None key
         fast_val = _fixed_packages[name]
         root = fast_val['root']
         base = os.path.join(root, name)
         versions = fast_val['versions']
-        dev_versions = []
         for version in versions:
             pkg = Package(VersionedPackageResource(
                 os.path.join(base, version, 'package.py'),
@@ -74,20 +86,28 @@ def _iter_packages(name=None, paths=None, include_dev=False):
 
             yield pkg
 
-        # special case: if 'dev' is wanted, fetch it on the 
-        if 'dev' not in versions and include_dev:
-            # _dev_paths is cached
-            # TODO currently assumes given paths are always the same
-            global _dev_paths
-            if _dev_paths is None:
-                _dev_paths = [path for path in paths if path.startswith('/datas')]
-            paths = _dev_paths
-
-        else:
+        if not include_dev or 'dev' in versions:
             return
 
-    except KeyError:
-        pass
+        # special case: if 'dev' is wanted but not specified on the fixed_packages,
+        # then fetch it on /datas (aka REZ_DEV_PACKAGES_ROOT) if it exists,
+        # on all available paths if it does not
+        # _dev_paths is cached
+        #
+        # /!\ the _dev_paths caching process is here and not in another function like _get_dev_paths
+        #     by choice, not laziness, to avoid slow func call in a kinda hot method
+        #
+        # TODO currently assumes given paths are always the same
+        global _dev_paths
+        if _dev_paths is None:
+
+            dev_root = os.getenv('REZ_DEV_PACKAGES_ROOT')
+            if not dev_root:
+                _dev_paths = paths
+            else:
+                _dev_paths = [path for path in paths if path.startswith(dev_root)]
+
+        paths = _dev_paths
 
     for resource in iter_resources(
             resource_keys='package.versioned',
