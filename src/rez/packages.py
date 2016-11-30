@@ -66,6 +66,11 @@ def merge_fixed_packages(tomerge):
             # merge both version arrays: only keep versions in both
             old_infos['versions'] = list( set(old_infos['versions']) & set(package_infos['versions']) )
 
+            # TODO better fix
+            # if no valid version is found, drop the fixed requirements
+            if not old_infos['versions']:
+                del _fixed_packages[package_name]
+
 
 # cache value of dev paths for fast version of _iter_packages
 _dev_paths = None  # TODO bahh global
