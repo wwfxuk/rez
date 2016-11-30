@@ -141,7 +141,7 @@ def iter_packages(name=None, range=None, paths=None):
         `Package` object iterator.
     """
     consumed = set()
-    include_dev = range is None or 'dev' in range
+    include_dev = range is None or Version('dev') in range
     for pkg in _iter_packages(name, paths, include_dev=include_dev):
         handle = (pkg.name, pkg.version)
         if handle not in consumed:
