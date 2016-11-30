@@ -41,7 +41,13 @@ def iter_package_families(paths=None):
 
 
 
-_fixed_packages = {}  # TODO bahh global
+# TODO bahh global
+# a bit dangerous: if it first tries a baked package 1.1.1, then a 1.1.0, both
+# fixed package dictionnary will be merged, and it will possibly have some side effects (ie invalid 1.1.0)
+# it should be ok atm as baked packages are the only one using this, and the iter package & verification
+# are done before any new package is merged, so the fixed_package array will be valid at least
+# for the first (latest) baked version
+_fixed_packages = {}
 def merge_fixed_packages(tomerge):
     global _fixed_packages
     for package_name, package_infos in tomerge.iteritems():
@@ -49,7 +55,7 @@ def merge_fixed_packages(tomerge):
             _fixed_packages[package_name] = package_infos
 
         else:
-            old_infos = _fixed_packages[packages_name]
+            old_infos = _fixed_packages[package_name]
 
             # assert roots are the same
             if old_infos['root'] != package_infos['root']:
@@ -58,7 +64,7 @@ def merge_fixed_packages(tomerge):
                                    % (old_infos['root'], package_infos['root']))
 
             # merge both version arrays: only keep versions in both
-            old_infos['versions'] = list( set(old_infos['versions']) & set(package_infos['root']) )
+            old_infos['versions'] = list( set(old_infos['versions']) & set(package_infos['versions']) )
 
 
 # cache value of dev paths for fast version of _iter_packages
