@@ -855,7 +855,10 @@ class _PackageVariantSlice(_Common):
                     else:
                         reason_str = ", ".join(common_fams)
                 else:
-                    reason_str = "first variant"
+                    ## MIKROS : More accurate description
+                    #reason_str = "first variant"
+                    reason_str = "higher version in slice"
+                    ## END MIKROS
                 self.pr("split (reason: %s) %s into %s and %s",
                         reason_str, self, slice_, next_slice)
 

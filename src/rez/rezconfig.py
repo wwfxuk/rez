@@ -208,7 +208,7 @@ prune_failed_graph = True
 # ["bar-2.8", "burgle-1.0"], because it contains more packages that were in the
 # original request (burgle).
 ## MIKROS: Keep previous variant order ================
-# - default_priority: use order in package;
+# - default_priority: use variant order as in package;
 variant_select_mode = "default_priority"
 ## END MIKROS ================
 
