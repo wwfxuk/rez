@@ -489,6 +489,10 @@ class LazyAttributeMeta(type):
             try:
                 return schema_.validate(attr)
             except Exception as e:
+                ## MIKROS: More log in errors
+                import traceback
+                traceback.print_stack()
+                ## END MIKROS
                 raise self.schema_error("Validation of key %r failed: "
                                         "%s" % (key, str(e)))
         return func

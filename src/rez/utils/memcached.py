@@ -85,31 +85,43 @@ class Client(object):
         key = self._qualified_key(key)
         hashed_key = self.key_hasher(key)
 
-        ## MIKROS: Manage other functions in package.py ====================
+        ## MIKROS: Manage external functions and string variables in package.py ====================
+        extVars = {}
 
         # Pop all custom functions
         if isinstance(val, dict):
+
             for k, v in val.copy().iteritems():
+
                 # Skip post_install function other than the ones known by rez
                 if k in ['post_install']:
                     val.pop(k)
                 # Skip isolated module imports
                 elif isinstance(v, ModuleType):
                     val.pop(k)
-            # Add other function code in commands
+                elif (k not in ['requires', 'variants']
+                    and not k.endswith('commands')):
+                    extVars[k] = v
+
+            # Add other function code and external variables to commands' code
             for com in ['pre_commands', 'commands', 'post_commands']:
                 if com in val:
-                    for k, v in val.iteritems():
+                    for k, v in extVars.iteritems():
                         if k in val[com].source:
-                            if v.__class__.__name__ == 'SourceCode' and not k.endswith('commands'):
+                            if v.__class__.__name__ == 'SourceCode':
                                 val[com].source = '\n'.join([v.code,
+                                                             '',
+                                                             val[com].source])
+                            # Only manage string variables for the moment
+                            elif isinstance(v, str):
+                                val[com].source = '\n'.join(['{0} = """{1}"""'.format(k, v.decode('string_escape')),
                                                              '',
                                                              val[com].source])
 
         ## END MIKROS ================
         val = (key, val)
 
-        ## MIKROS: Don't local and prod packages in cache ====================
+        ## MIKROS: Don't put local and prod packages in cache ====================
         if tupleKey[0] == 'package_file':
 
             package_file = tupleKey[1]

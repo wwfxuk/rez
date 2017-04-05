@@ -1242,6 +1242,9 @@ class RexExecutor(object):
     @classmethod
     def _raise_rex_error(cls, frames, e):
         import traceback
+        ## MIKROS: Print whole stack
+        traceback.print_stack()
+        ## END MIKROS
         stack = ''.join(traceback.format_list(frames)).strip()
         if isinstance(e, RexError):
             raise type(e)("%s\n%s" % (str(e), stack))

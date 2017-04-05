@@ -357,6 +357,10 @@ def iter_packages(name, range_=None, paths=None):
             key = (package_resource.name, package_resource.version)
             if key in seen:
                 continue
+            ## MKROS: Manage groups named as packages
+            if package_resource.version is None:
+                continue
+            ## END MIKROS
 
             seen.add(key)
             if range_:

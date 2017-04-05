@@ -250,6 +250,10 @@ class PackageResource(PackageRepositoryResource):
     @cached_property
     def version(self):
         ver_str = self.get("version", "")
+        ## MIKROS: A Group is named as a package
+        if isinstance(ver_str, tuple):
+            return None
+        ## END MIKROS
         return Version(ver_str)
 
 
