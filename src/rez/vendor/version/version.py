@@ -27,7 +27,6 @@ import re
 
 re_token = re.compile(r"[a-zA-Z0-9_]+")
 
-
 @total_ordering
 class _Comparable(_Common):
     def __lt__(self, other):
@@ -709,6 +708,8 @@ class VersionRange(_Comparable):
         """
         self._str = None
         self.bounds = []
+        self._init_str = range_str
+        self._str_overload = None
         if range_str is None:
             return
 
@@ -1028,7 +1029,9 @@ class VersionRange(_Comparable):
 
     def __str__(self):
         if self._str is None:
-            self._str = '|'.join(map(str, self.bounds))
+             ## MIKROS: Manage rc version in variants
+            self._str = self._str_overload or '|'.join(map(str, self.bounds))
+            ## END MIKROS
         return self._str
 
     def __eq__(self, other):
