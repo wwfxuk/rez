@@ -241,7 +241,12 @@ class Variant(PackageBaseResourceWrapper):
                 init_str = require.range_._init_str
                 if init_str and not re_match_rc.search(init_str):
                     old_str = str(require.range_)
-                    require.range_ = VersionRange("{0}|rc-{0}".format(init_str))
+                    # Manage < special case
+                    if init_str[0] == '<':
+                        vrange = '{0}|<rc-{0}'.format(init_str[1:])
+                    else:
+                        vrange = '{0}|rc-{0}'.format(init_str)
+                    require.range_ = VersionRange(vrange)
                     require.range_._str_overload = old_str
         ## END MIKROS
 
