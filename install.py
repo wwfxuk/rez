@@ -146,9 +146,9 @@ def install(dest_dir, verbosity=0):
         f.write(_rez_version)
 
     # done
-    print
-    print "SUCCESS! To activate Rez, add the following path to $PATH:"
-    print dest_bin_dir
+    print('')
+    print("SUCCESS! To activate Rez, add the following path to $PATH:")
+    print(dest_bin_dir)
 
     if completion_path:
         print('')
@@ -176,7 +176,8 @@ if __name__ == "__main__":
         help="Increase verbosity.")
     parser.add_option(
         '-p', '--as-package', dest='package',
-        help="Given a package name, install using rez package structure.")
+        help="Given a package name, install using rez package structure. "
+             "(DEST_DIR should be the rez packages directory)")
     parser.add_option(
         '-s', '--keep-symlinks', action="store_true", default=False,
         help="Don't run realpath on the passed DEST_DIR to resolve symlinks; "
@@ -192,7 +193,10 @@ if __name__ == "__main__":
 
     # determine install path
     if len(args) != 1:
-        parser.error("expected DEST_DIR")
+        error = "expected DEST_DIR"
+        if opts.package:
+            error += " (rez packages directory)"
+        parser.error(error)
 
     dest_dir = args[0].format(version=_rez_version)
     dest_dir = os.path.expanduser(dest_dir)
