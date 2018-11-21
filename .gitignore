@@ -1,12 +1,1 @@
-*.pyc
-.project
-.pydevproject
-.nfs*
-*.swp
-src/rez.egg-info/
 build/
-dist/
-*~
-docs/_build
-.DS_Store
-.rez-gen-wiki-tmp

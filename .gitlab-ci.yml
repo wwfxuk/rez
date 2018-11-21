@@ -1,0 +1,76 @@
+# See http://gitlab.wwfx.co.uk/snippets/8 for most recent, default CI configs
+
+# ---- Project settings ----
+# 1. Localise packages path to CI project folder (automatically cleaned)
+# 2. Validate and checkout CI branch if not a tag
+before_script:
+- git config --local user.email "$(whoami)@${HOSTNAME}"
+- REZ_LOCAL_PACKAGES_PATH_OLD="$(rez config local_packages_path)"
+- export REZ_LOCAL_PACKAGES_PATH="$CI_PROJECT_DIR/.pkgs"
+- export REZ_PACKAGES_PATH="$(rez config packages_path | tr '\n' ':' | sed -E
+    -e 's/\- |:$//g'
+    -e s:$REZ_LOCAL_PACKAGES_PATH_OLD:$REZ_LOCAL_PACKAGES_PATH:)"
+- if [ -z ${CI_COMMIT_TAG+x} ] && [ "$(git rev-parse --short origin/$CI_BUILD_REF_NAME)" == "$(git rev-parse --short HEAD)" ];
+  then  
+    git checkout -B $CI_BUILD_REF_NAME origin/$CI_BUILD_REF_NAME;
+  fi
+
+stages:
+- build
+- test
+- deploy
+
+
+# ---- Deleteme if no longer just default configs ----
+Check latest CI yaml:
+    stage: test
+    allow_failure: true
+    script:
+    - curl http://gitlab.wwfx.co.uk/snippets/8/raw | diff .gitlab-ci.yml -
+
+
+# --- Caching templates ---
+.build-cache:
+    cache:
+        # Remember build/installed rez packages, installed package information
+        key: "${CI_PROJECT_PATH_SLUG}-${CI_PIPELINE_ID}-build_cache"
+        paths:
+        - .pkgs/
+        - BUILT_PACKAGE
+
+
+# ---- Job definitions ----
+(rez) Build and install locally:
+    stage: build    
+    extends: .build-cache
+    tags:
+    - build
+    cache:
+        policy: push
+    variables:
+        BUILD_FLAGS: --pull --no-cache
+    script:
+    - rez build -vvv --install --clean | tee .build-info.txt
+    - sed -nE '/Building (.+)\.{3}/ {; /variant/d; s/[+]/./g; s/Building (.+)\.{3}/\1/p; }' .build-info.txt > BUILT_PACKAGE
+
+(rez) Test package commands:
+    stage: test
+    extends: .build-cache
+    cache:
+        policy: pull
+    script:
+    - rez env "$(cat BUILT_PACKAGE)" -- rez context
+
+(rez) Release:
+    stage: deploy
+    only:
+    - master
+    tags:
+    - release
+    script:
+    - PUSH_SSH_URL="${CI_REPOSITORY_URL//*@/git@}"
+    - PUSH_SSH_URL="${PUSH_SSH_URL/\//:}"
+    - git remote set-url --push origin "$PUSH_SSH_URL"
+    - rez release -vvv    
+    after_script:
+    - git remote set-url --push origin "$CI_REPOSITORY_URL"
