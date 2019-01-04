@@ -513,6 +513,29 @@ class LazyAttributeMeta(type):
 
         return cached_property(getter, name=attribute)
 
+def remove_nones(**kwargs):
+    """Return diict copy with nones removed.
+    """
+    return dict((k, v) for k, v in kwargs.iteritems() if v is not None)
+
+def deep_del(data, fn):
+    """Create dict copy with removed items.
+
+    Recursively remove items where fn(value) is True.
+
+    Returns:
+        dict: New dict with matching items removed.
+    """
+    result = {}
+
+    for k, v in data.iteritems():
+        if not fn(v):
+            if isinstance(v, dict):
+                result[k] = deep_del(v, fn)
+            else:
+                result[k] = v
+
+    return result
 
 # Copyright 2013-2016 Allan Johns.
 #

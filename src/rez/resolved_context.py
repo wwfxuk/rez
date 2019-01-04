@@ -6,7 +6,8 @@ from rez.system import system
 from rez.config import config
 from rez.util import shlex_join, dedup
 from rez.utils.colorize import critical, heading, local, implicit, Printer
-from rez.utils.formatting import columnise, PackageRequest
+from rez.utils.formatting import columnise, PackageRequest, ENV_VAR_REGEX
+from rez.utils.data_utils import deep_del
 from rez.utils.filesystem import TempDirs
 from rez.utils.memcached import pool_memcached_connections
 from rez.backport.shutilwhich import which
@@ -27,6 +28,8 @@ from tempfile import mkdtemp
 from functools import wraps
 import getpass
 import traceback
+import threading
+import socket
 import inspect
 import time
 import sys
@@ -112,6 +115,9 @@ class ResolvedContext(object):
     """
     serialize_version = (4, 2)
     tmpdir_manager = TempDirs(config.context_tmpdir, prefix="rez_context_")
+
+    context_tracking_payload = None
+    context_tracking_lock = threading.Lock()
 
     class Callback(object):
         def __init__(self, max_fails, time_limit, callback, buf=None):
@@ -258,6 +264,11 @@ class ResolvedContext(object):
 
         if self.status_ == ResolverStatus.solved:
             self._resolved_packages = resolver.resolved_packages
+
+        # track context usage
+        if config.context_tracking_host:
+            data = self.to_dict(fields=config.context_tracking_context_fields)
+            self._track_context(data, action="created")
 
     def __str__(self):
         request = self.requested_packages(include_implicit=True)
@@ -1221,7 +1232,7 @@ class ResolvedContext(object):
         else:
             return p
 
-    def to_dict(self):
+    def to_dict(self, fields=None):
         resolved_packages = []
         for pkg in (self._resolved_packages or []):
             resolved_packages.append(pkg.handle.to_dict())
@@ -1238,7 +1249,7 @@ class ResolvedContext(object):
             g = self.graph()
             graph_str = write_compacted(g)
 
-        return dict(
+        data = dict(
             serialize_version=serialize_version,
 
             timestamp=self.timestamp,
@@ -1273,6 +1284,11 @@ class ResolvedContext(object):
             from_cache=self.from_cache,
             solve_time=self.solve_time,
             load_time=self.load_time)
+        
+        if fields:
+            data = dict((k, v) for k, v in data.iteritems() if k in fields)
+        
+        return data
 
     @classmethod
     def from_dict(cls, d, identifier_str=None):
@@ -1375,6 +1391,12 @@ class ResolvedContext(object):
             r.package_orderers = [package_order.from_pod(x) for x in data]
         else:
             r.package_orderers = None
+
+        if config.context_tracking_host:
+            data = dict((k, v) for k, v in d.iteritems()
+                        if k in config.context_tracking_context_fields)
+
+            r._track_context(data, action="sourced")
 
         return r
 
@@ -1587,6 +1609,56 @@ class ResolvedContext(object):
         for path in suite_paths:
             tools_path = os.path.join(path, "bin")
             executor.env.PATH.append(tools_path)
+
+    @classmethod
+    def _init_context_tracking_payload_base(cls):
+        if cls.context_tracking_payload is not None:
+            return
+
+        data = {
+            "host": socket.getfqdn(),
+            "user": getpass.getuser()
+        }
+
+        data.update(config.context_tracking_extra_fields or {})
+
+        # remove fields with unexpanded env-vars, or empty string
+        def _del(value):
+            return (
+                isinstance(value, basestring) and
+                (not value or ENV_VAR_REGEX.search(value))
+            )
+
+        data = deep_del(data, _del)
+
+        with cls.context_tracking_lock:
+            if cls.context_tracking_payload is None:
+                cls.context_tracking_payload = data
+
+
+    def _track_context(self, context_data, action):
+        from rez.utils.amqp import publish_message
+
+        # create message payload
+        data = {
+            "action": action,
+            "context": context_data
+        }
+
+        self._init_context_tracking_payload_base()
+        data.update(self.context_tracking_payload)
+
+        # publish message
+        routing_key = (config.context_tracking_amqp["exchange_routing_key"] +
+                       '.' + action.upper())
+
+        publish_message(
+            host=config.context_tracking_host,
+            amqp_settings=config.context_tracking_amqp,
+            routing_key=routing_key,
+            data=data,
+            async=True
+        )
 
 
 # Copyright 2013-2016 Allan Johns.

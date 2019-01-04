@@ -711,7 +711,16 @@ plugins = {
     }
 }
 
-
+context_tracking_context_fields = [
+    "status",
+    "timestamp",
+    "solve_time",
+    "load_time",
+    "from_cache",
+    "package_requests",
+    "implicit_packages",
+    "resolved_packages"
+]
 
 ###############################################################################
 ###############################################################################

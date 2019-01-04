@@ -320,6 +320,10 @@ config_schema = Schema({
     "variant_select_mode":                          VariantSelectMode_,
     "package_filter":                               OptionalDictOrDictList,
     "new_session_popen_args":                       OptionalDict,
+    "context_tracking_context_fields":              StrList,
+    "context_tracking_host":                        OptionalStr,
+    "context_tracking_amqp":                        OptionalDict,
+    "context_tracking_extra_fields":                OptionalDict,
 
     # GUI settings
     "use_pyside":                                   Bool,
