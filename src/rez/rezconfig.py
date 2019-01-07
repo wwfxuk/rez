@@ -741,6 +741,19 @@ use_pyqt = False
 gui_threads = True
 
 
+context_tracking_host = 'sliver.mikros.int:5672'
+context_tracking_extra_fields = {
+    "pythonPath": "$PYTHONPATH"
+}
+context_tracking_amqp = {
+    "userid": None,
+    "password": None,
+    "connect_timeout": 10,
+    "exchange_name": '',
+    "exchange_routing_key": 'REZ.CONTEXT',
+    "message_delivery_mode": 1
+}
+
 # Copyright 2013-2016 Allan Johns.
 #
 # This library is free software: you can redistribute it and/or
@@ -755,3 +768,4 @@ gui_threads = True
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library.  If not, see <http://www.gnu.org/licenses/>.
+
