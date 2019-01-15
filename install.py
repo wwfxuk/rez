@@ -208,9 +208,17 @@ if __name__ == "__main__":
             install(root, verbosity=opts.verbose)
 
         def commands():
-            env.PATH.append('{this.root}/bin')
-            env.PATH.append('{this.root}/bin/rez')
-            source('{this.root}/completion/complete.sh')
+            import os
+            import rez
+            env.PATH.append(os.path.join('{this.root}', 'bin', 'rez'))
+            source(os.path.join('{this.root}', 'completion', 'complete.sh'))
+
+            # Setup PYTHONPATH (inspired by src/rez/bind/rez.py)
+            rez_path = rez.__path__[0]
+            site_path = os.path.dirname(rez_path)
+            rezplugins_path = os.path.join(site_path, "rezplugins")
+            env.PYTHONPATH.append(rez_path)
+            env.PYTHONPATH.append(rezplugins_path)
 
         with make_package(opts.package, dest_dir, make_root=make_root) as pkg:
             pkg.version = _rez_version
