@@ -244,6 +244,9 @@ class Variant(PackageBaseResourceWrapper):
                     # Manage < special case
                     if init_str[0] == '<':
                         vrange = '{0}|<rc-{0}'.format(init_str[1:])
+                    elif ''.join(init_str[0:2]) == '==':
+                        # In this case consider we want the exact vesrion
+                        vrange = init_str
                     else:
                         vrange = '{0}|rc-{0}'.format(init_str)
                     require.range_ = VersionRange(vrange)
