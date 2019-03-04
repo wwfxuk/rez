@@ -5,16 +5,25 @@ First, install Rez. Download the source, and from the source directory, run
 
     ]$ python ./install.py -v DEST_DIR
 
-This installs the Rez command line tools. It will print a message at the end
-telling you how to use Rez when the installation has completed. Rez is not a
-normal Python package and so you do not typically install it with pip or setup.py.
-Do *not* move the installation - re-install to a new location if you want to
-change the install path. If you want to install rez for multiple operating
-systems, perform separate installs for each of those systems.
+This installs the Rez command line tools 
+(see `python ./install.py --help` for more options e.g. install as package). 
 
-Next, you need to create some essential Rez packages. The *rez-bind* tool creates
+It will print a message at the end telling you how to use Rez when 
+the installation has completed. 
+
+> **Warning**
+>
+> Rez is not a normal Python package and so you do not typically 
+> install it with `pip` or `setup.py`.
+> 
+> * Do **not** move the installation - re-install to a new location if you want 
+>   to change the install path. 
+> * If you want to install rez for multiple operating systems, perform separate
+>   installs for each of those systems.
+
+Next, you need to create some essential Rez packages. The `rez-bind` tool creates
 Rez packages that reference software already installed on your system. Use the
-*--quickstart* argument to bind a set of standard packages (note that you may
+`--quickstart` argument to bind a set of standard packages (note that you may
 require administrative privileges for some of them):
 
     ]$ rez-bind --quickstart
