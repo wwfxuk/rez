@@ -146,6 +146,26 @@ class ResolvedContext(object):
                 return self.callback(state)
             return SolverCallbackReturn.keep_going, ''
 
+    def re_resolved(self, add_implicit_packages=True,
+                    max_fails=-1, time_limit=-1, callback=None,
+                    package_load_callback=None, buf=None,
+                    suppress_passive=False, print_stats=False):
+        return self.__class__(self.requested_packages(),
+                   verbosity=self.verbosity, timestamp=None,
+                   building=self.building,
+                   caching=self.caching,
+                   package_paths=self.package_paths,
+                   package_filter=self.package_filter,
+                   package_orderers=self.package_orderers,
+                   max_fails=max_fails,
+                   add_implicit_packages=add_implicit_packages,
+                   time_limit=time_limit,
+                   callback=callback,
+                   package_load_callback=package_load_callback,
+                   buf=buf,
+                   suppress_passive=suppress_passive,
+                   print_stats=print_stats)
+
     def __init__(self, package_requests, verbosity=0, timestamp=None,
                  building=False, caching=None, package_paths=None,
                  package_filter=None, package_orderers=None, max_fails=-1,

@@ -748,10 +748,12 @@ class Suite(object):
 
 
 def _FWD__invoke_suite_tool_alias(context_name, tool_name, prefix_char=None,
-                                  _script=None, _cli_args=None):
+                                  re_resolve=False, _script=None, _cli_args=None):
     suite_path = os.path.dirname(os.path.dirname(_script))
     path = os.path.join(suite_path, "contexts", "%s.rxt" % context_name)
     context = ResolvedContext.load(path)
+    if re_resolve:
+         context = context.re_resolved(context)
 
     from rez.wrapper import Wrapper
     w = Wrapper.__new__(Wrapper)
