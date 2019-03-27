@@ -96,7 +96,7 @@ def command(opts, parser, extra_arg_groups=None):
     import sys
 
     context_needed = set(("add", "prefix", "suffix", "hide", "unhide", "alias",
-                          "unalias", "interactive"))
+                          "unalias", "interactive", "re_resolve"))
     save_needed = set(("add", "remove", "bump", "prefix", "suffix", "hide",
                        "unhide", "alias", "unalias", "re_resolve"))
 
@@ -164,8 +164,6 @@ def command(opts, parser, extra_arg_groups=None):
                 ("" if opts.re_resolve else "NOT ", opts.context))
             suite.set_context_re_resolve(name=opts.context,
                                          re_resolve=opts.re_resolve)
-            _pr("saving suite to %r..." % opts.DIR)
-            suite.save(opts.DIR)
         else:
             parser.error("--context must be supplied when using "
                          "--[no-]reresolve")
@@ -207,7 +205,7 @@ def command(opts, parser, extra_arg_groups=None):
         suite.print_info(verbose=opts.verbose)
         sys.exit(0)
 
-    do_save = any(getattr(opts, x) for x in save_needed)
+    do_save = any(getattr(opts, x) is not None for x in save_needed)
     if do_save:
         _pr("saving suite to %r..." % opts.DIR)
         suite.save(opts.DIR)
