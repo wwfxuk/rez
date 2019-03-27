@@ -122,6 +122,7 @@ class Suite(object):
                                    context=context.copy(),
                                    tool_aliases={},
                                    hidden_tools=set(),
+                                   re_resolve=False,
                                    priority=self._next_priority,
                                    prefix_char=prefix_char)
         self._flush_tools()
@@ -174,6 +175,21 @@ class Suite(object):
         """
         self._context(name)
         del self.contexts[name]
+        self._flush_tools()
+
+    def set_context_re_resolve(self, name, re_resolve):
+        """Set a context's re_resolve.
+
+        This will be applied to all wrappers for the tools in this context. For
+        example, a tool called 'foo' would appear as '<re_resolve>foo' in the
+        suite's bin path.
+
+        Args:
+            name (str): Name of the context to re_resolve.
+            re_resolve (bool): re_resolve to apply to tools.
+        """
+        data = self._context(name)
+        data["re_resolve"] = bool(re_resolve)
         self._flush_tools()
 
     def set_context_prefix(self, name, prefix):
@@ -468,6 +484,7 @@ class Suite(object):
 
             data = self._context(context_name)
             prefix_char = data.get("prefix_char")
+            re_resolve = data["re_resolve"]
 
             if verbose:
                 print("creating %r -> %r (%s context)..."
@@ -479,6 +496,7 @@ class Suite(object):
                                      func_name="_FWD__invoke_suite_tool_alias",
                                      context_name=context_name,
                                      tool_name=tool_name,
+                                     re_resolve=re_resolve,
                                      prefix_char=prefix_char)
 
     @classmethod
