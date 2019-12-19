@@ -12,12 +12,19 @@ from rez.vendor.packaging.specifiers import Specifier
 from rez.vendor.six.six import StringIO
 from rez.resolved_context import ResolvedContext
 from rez.utils.execution import Popen
-from rez.utils.pip import get_rez_requirements, pip_to_rez_package_name, \
-    pip_to_rez_version
-from rez.utils.logging_ import print_debug, print_info, print_error, \
-    print_warning
-from rez.exceptions import BuildError, PackageFamilyNotFoundError, \
-    PackageNotFoundError, RezSystemError, convert_errors
+from rez.utils.pip import (
+    get_rez_requirements,
+    pip_to_rez_package_name,
+    pip_to_rez_version,
+)
+from rez.utils.logging_ import print_debug, print_info, print_error, print_warning
+from rez.exceptions import (
+    BuildError,
+    PackageFamilyNotFoundError,
+    PackageNotFoundError,
+    RezSystemError,
+    convert_errors,
+)
 from rez.package_maker import make_package
 from rez.config import config
 from rez.utils.platform_ import platform_
@@ -206,10 +213,16 @@ def find_pip_from_context(python_version, pip_version=None):
         # -E and -s are used to isolate the environment as much as possible.
         # See python --help for more details. We absolutely don't want to get
         # pip from the user home.
-        [py_exe, "-E", "-s", "-c", "import pip, sys; sys.stdout.write(pip.__version__)"],
+        [
+            py_exe,
+            "-E",
+            "-s",
+            "-c",
+            "import pip, sys; sys.stdout.write(pip.__version__)",
+        ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True
+        text=True,
     )
     out, err = proc.communicate()
     if proc.returncode:
@@ -223,18 +236,21 @@ def find_pip_from_context(python_version, pip_version=None):
     variant = context.get_resolved_package(target)
     package = variant.parent
     print_info(
-        "Found pip-%s inside %s. Will use it via %s",
-        pip_version,
-        package.uri,
-        py_exe
+        "Found pip-%s inside %s. Will use it via %s", pip_version, package.uri, py_exe
     )
 
     return py_exe, pip_version, context
 
 
-def pip_install_package(source_name, pip_version=None, python_version=None,
-                        mode=InstallMode.min_deps, release=False, prefix=None,
-                        extra_args=None):
+def pip_install_package(
+    source_name,
+    pip_version=None,
+    python_version=None,
+    mode=InstallMode.min_deps,
+    release=False,
+    prefix=None,
+    extra_args=None,
+):
     """Install a pip-compatible python package as a rez package.
     Args:
         source_name (str): Name of package or archive/url containing the pip
@@ -259,18 +275,16 @@ def pip_install_package(source_name, pip_version=None, python_version=None,
     skipped_variants = []
 
     py_exe, context = find_pip(pip_version, python_version)
-    print_info(
-        "Installing %r with pip taken from %r",
-        source_name, py_exe
-    )
+    print_info("Installing %r with pip taken from %r", source_name, py_exe)
 
     # TODO: should check if packages_path is writable before continuing with pip
     #
     if prefix is not None:
         packages_path = prefix
     else:
-        packages_path = (config.release_packages_path if release
-                         else config.local_packages_path)
+        packages_path = (
+            config.release_packages_path if release else config.local_packages_path
+        )
 
     targetpath = mkdtemp(suffix="-rez", prefix="pip-")
 
@@ -307,7 +321,7 @@ def pip_install_package(source_name, pip_version=None, python_version=None,
     # determine version of python in use
     if context is None:
         # since we had to use system pip, we have to assume system python version
-        py_ver_str = '.'.join(map(str, sys.version_info))
+        py_ver_str = ".".join(map(str, sys.version_info))
         py_ver = Version(py_ver_str)
     else:
         python_variant = context.get_resolved_package("python")
@@ -319,45 +333,47 @@ def pip_install_package(source_name, pip_version=None, python_version=None,
     dist_names = [x.name for x in distributions]
 
     def log_append_pkg_variants(pkg_maker):
-        template = '{action} [{package.qualified_name}] {package.uri}{suffix}'
+        template = "{action} [{package.qualified_name}] {package.uri}{suffix}"
         actions_variants = [
             (
-                print_info, 'Installed',
-                installed_variants, pkg_maker.installed_variants or [],
+                print_info,
+                "Installed",
+                installed_variants,
+                pkg_maker.installed_variants or [],
             ),
             (
-                print_debug, 'Skipped',
-                skipped_variants, pkg_maker.skipped_variants or [],
+                print_debug,
+                "Skipped",
+                skipped_variants,
+                pkg_maker.skipped_variants or [],
             ),
         ]
         for print_, action, variants, pkg_variants in actions_variants:
             for variant in pkg_variants:
                 variants.append(variant)
                 package = variant.parent
-                suffix = (' (%s)' % variant.subpath) if variant.subpath else ''
+                suffix = (" (%s)" % variant.subpath) if variant.subpath else ""
                 print_(template.format(**locals()))
 
     # get list of package and dependencies
     for distribution in distributions:
         # convert pip requirements into rez requirements
         rez_requires = get_rez_requirements(
-            installed_dist=distribution,
-            python_version=py_ver,
-            name_casings=dist_names
+            installed_dist=distribution, python_version=py_ver, name_casings=dist_names
         )
 
         # log the pip -> rez requirements translation, for debugging
         _log(
-            "Pip to rez requirements translation information for " +
-            distribution.name_and_version +
-            ":\n" +
-            pformat({
-                "pip": {
-                    "run_requires": map(str, distribution.run_requires)
-                },
-                "rez": rez_requires
-            }
-        ))
+            "Pip to rez requirements translation information for "
+            + distribution.name_and_version
+            + ":\n"
+            + pformat(
+                {
+                    "pip": {"run_requires": map(str, distribution.run_requires)},
+                    "rez": rez_requires,
+                }
+            )
+        )
 
         # determine where pip files need to be copied into rez package
         src_dst_lut = _get_distribution_files_mapping(distribution, targetpath)
@@ -371,9 +387,9 @@ def pip_install_package(source_name, pip_version=None, python_version=None,
 
         # Sanity warning to see if any files will be copied
         if not src_dst_lut:
-            message = 'No source files exist for {}!'
+            message = "No source files exist for {}!"
             if not _verbose:
-                message += '\nTry again with rez-pip --verbose ...'
+                message += "\nTry again with rez-pip --verbose ..."
             print_warning(message.format(distribution.name_and_version))
 
         def make_root(variant, path):
@@ -422,7 +438,7 @@ def pip_install_package(source_name, pip_version=None, python_version=None,
                 pkg.tools = tools
                 commands.append("env.PATH.append('{root}/bin')")
 
-            pkg.commands = '\n'.join(commands)
+            pkg.commands = "\n".join(commands)
 
             # Make the package use hashed variants. This is required because we
             # can't control what ends up in its variants, and that can easily
@@ -453,7 +469,7 @@ def pip_install_package(source_name, pip_version=None, python_version=None,
                 author = distribution_metadata["author"]
 
                 if "author_email" in distribution_metadata:
-                    author += ' ' + distribution_metadata["author_email"]
+                    author += " " + distribution_metadata["author_email"]
 
                 pkg.authors = [author]
 
@@ -470,8 +486,7 @@ def pip_install_package(source_name, pip_version=None, python_version=None,
         print_warning("NO packages were installed.")
     if skipped_variants:
         print_warning(
-            "%d packages were already installed.",
-            len(skipped_variants),
+            "%d packages were already installed.", len(skipped_variants),
         )
 
     return installed_variants, skipped_variants
@@ -494,6 +509,7 @@ def _get_distribution_files_mapping(distribution, targetdir):
         * key: Path of pip installed file, relative to `targetdir`;
         * value: Relative path to install into rez package.
     """
+
     def get_mapping(rel_src):
         topdir = rel_src.split(os.sep)[0]
 
@@ -506,15 +522,15 @@ def _get_distribution_files_mapping(distribution, targetdir):
         # Remapping of other installed files according to manifest
         if topdir == os.pardir:
             for remap in config.pip_install_remaps:
-                path = remap['record_path']
+                path = remap["record_path"]
                 if re.search(path, rel_src):
-                    pip_subpath = re.sub(path, remap['pip_install'], rel_src)
-                    rez_subpath = re.sub(path, remap['rez_install'], rel_src)
+                    pip_subpath = re.sub(path, remap["pip_install"], rel_src)
+                    rez_subpath = re.sub(path, remap["rez_install"], rel_src)
                     return (pip_subpath, rez_subpath)
 
-            tokenised_path = rel_src.replace(os.pardir, '{pardir}')
-            tokenised_path = tokenised_path.replace(os.sep, '{sep}')
-            dist_record = '{dist.name}-{dist.version}.dist-info{os.sep}RECORD'
+            tokenised_path = rel_src.replace(os.pardir, "{pardir}")
+            tokenised_path = tokenised_path.replace(os.sep, "{sep}")
+            dist_record = "{dist.name}-{dist.version}.dist-info{os.sep}RECORD"
             dist_record = dist_record.format(dist=distribution, os=os)
 
             try_this_message = r"""
@@ -538,7 +554,9 @@ def _get_distribution_files_mapping(distribution, targetdir):
 
             If path remapping is not enough, consider submitting a new issue
             via https://github.com/nerdvegas/rez/issues/new
-            """.format(dist_record, rel_src, tokenised_path)
+            """.format(
+                dist_record, rel_src, tokenised_path
+            )
             print_error(dedent(try_this_message).lstrip())
 
             raise IOError(
@@ -563,8 +581,7 @@ def _get_distribution_files_mapping(distribution, targetdir):
         src_filepath = os.path.join(targetdir, rel_src)
         if not os.path.exists(src_filepath):
             print_warning(
-                "Skipping non-existent source file: %s (%s)",
-                src_filepath, rel_src_orig
+                "Skipping non-existent source file: %s (%s)", src_filepath, rel_src_orig
             )
             continue
 
@@ -576,13 +593,13 @@ def _get_distribution_files_mapping(distribution, targetdir):
 def _option_present(opts, *args):
     for opt in opts:
         for arg in args:
-            if opt == arg or opt.startswith(arg + '='):
+            if opt == arg or opt.startswith(arg + "="):
                 return True
     return False
 
 
 def _cmd(context, command):
-    cmd_str = ' '.join(quote(x) for x in command)
+    cmd_str = " ".join(quote(x) for x in command)
     _log("running: %s" % cmd_str)
 
     if context is None:
