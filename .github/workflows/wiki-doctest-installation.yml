@@ -1,0 +1,64 @@
+name: Wiki - doctest Installation
+on: [push]
+
+jobs:
+  linux:
+    name: Python (Debian) - install
+    runs-on: ubuntu-latest
+    container: python:${{ matrix.python-version }}
+    strategy:
+      matrix:
+        python-version:
+          - '2.7'
+          - '3.6'
+          - '3.7'
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@master
+
+    - name: Default python install.py
+      run: |
+        python install.py
+        test -d /opt/rez/bin/rez
+        test -d /opt/rez/completion
+
+    - name: pip install --target
+      run: |
+        pip install --ignore-installed --force-reinstall --target target .
+        cd target
+        echo
+        echo "==========================================="
+        echo "Installed into (pwd, maxdepth 2):"
+        pwd
+        echo "==========================================="
+        find . -maxdepth 2 ! -name '*.pyc' -ls
+
+    - name: pip install --prefix
+      run: |
+        pip install --ignore-installed --force-reinstall --prefix prefix .
+        cd prefix
+        echo
+        echo "==========================================="
+        echo "Installed into (pwd, maxdepth 5):"
+        pwd
+        echo "==========================================="
+        find . -maxdepth 5 ! -name '*.pyc' -ls
+
+    - name: rez-pip --install
+      run: |
+        python install.py
+        export PATH=${PATH}:/opt/rez/bin/rez
+        echo "rez bind pip ==========================================="
+        rez bind pip
+        echo "rez-pip --install . ==========================================="
+        rez-pip --install .
+        echo "rez view rez ==========================================="
+        rez view rez
+        cd $(find $HOME/packages/rez -maxdepth 2 -type d | tail -1)
+        echo
+        echo "==========================================="
+        echo "Installed as rez package (pwd, maxdepth 3):"
+        pwd
+        echo "==========================================="
+        find -maxdepth 3 ! -name '*.pyc' -ls
