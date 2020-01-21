@@ -1,16 +1,15 @@
 name: Wiki
 on:
   push:
-    branches:
-      - master
+    # branches:
+    #   - master
     paths:
       - 'wiki/**'
   pull_request:
     paths:
       - 'wiki/**'
 env:
-  # CLONE_URL: "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git"
-  CLONE_URL: "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/wwfxuk/rez.wiki.git"
+  CLONE_URL: "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git"
 
 jobs:
   build:
@@ -54,7 +53,7 @@ jobs:
   publish:
     name: Publish to GitHub Wiki
     runs-on: ubuntu-latest
-    # if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' || github.repository == 'wwfxuk/rez'
     needs: build
 
     steps:
