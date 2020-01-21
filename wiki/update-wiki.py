@@ -42,7 +42,7 @@ REZ_SOURCE_DIR = os.getenv("REZ_SOURCE_DIR", os.path.dirname(THIS_DIR))
 TMP_NAME = ".rez-gen-wiki-tmp"  # See also: .gitignore
 TEMP_WIKI_DIR = os.getenv("TEMP_WIKI_DIR", os.path.join(THIS_DIR, TMP_NAME))
 GITHUB_REPO = os.getenv("GITHUB_REPOSITORY", "nerdvegas/rez")
-GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "master")
+GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "master").replace("refs/heads/", "")
 GITHUB_WORKFLOW = os.getenv("GITHUB_WORKFLOW", "Wiki")
 CLONE_URL = os.getenv(
     "CLONE_URL",
@@ -792,7 +792,7 @@ if __name__ == "__main__":
     args = UpdateWikiParser().parse_args()
     CLONE_URL = args.url
     GITHUB_REPO = args.repo
-    GITHUB_BRANCH = args.branch
+    GITHUB_BRANCH = args.branch.replace("refs/heads/", "")
     GITHUB_WORKFLOW = args.workflow
     TEMP_WIKI_DIR = os.path.abspath(args.dir)
     if not os.path.exists(TEMP_WIKI_DIR):

@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - master
+      - wiki-merge-utils
     paths:
       - '.gitlab/workflows/wiki.yaml'
       - 'wiki/**'
@@ -55,7 +56,7 @@ jobs:
   publish:
     name: Publish to GitHub Wiki
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' || github.repository == 'wwfxuk/rez'
     needs: build
 
     steps:
