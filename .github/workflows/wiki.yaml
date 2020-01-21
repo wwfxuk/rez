@@ -1,8 +1,9 @@
 name: Wiki
 on:
   push:
-    # branches:
-    #   - master
+    branches:
+      - master
+      - wiki-merge-utils  # REMOVE later
     paths:
       - '.gitlab/workflows/wiki.yaml'
       - 'wiki/**'
