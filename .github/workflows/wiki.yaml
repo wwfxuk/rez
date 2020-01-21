@@ -3,8 +3,8 @@ on:
   push:
     # branches:
     #   - master
-    paths:
-      - 'wiki/**'
+    # paths:
+    #   - 'wiki/**'
   pull_request:
     paths:
       - 'wiki/**'
