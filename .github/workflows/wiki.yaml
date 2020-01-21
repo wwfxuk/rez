@@ -3,10 +3,12 @@ on:
   push:
     # branches:
     #   - master
-    # paths:
-    #   - 'wiki/**'
+    paths:
+      - '.gitlab/workflows/wiki.yaml'
+      - 'wiki/**'
   pull_request:
     paths:
+      - '.gitlab/workflows/wiki.yaml'
       - 'wiki/**'
 env:
   CLONE_URL: "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git"
