@@ -199,7 +199,7 @@ def tmp_install(prefix="rez-install-"):
             pass
 
 
-def install_as_rez_package(repo_path):
+def install_as_rez_package(repo_path, package_type='python', name='rez'):
     """Installs rez as a rez package.
 
     Note that this can be used to install new variants of rez into an existing
@@ -209,12 +209,25 @@ def install_as_rez_package(repo_path):
         repo_path (str): Full path to the package repository to install into.
     """
     with tmp_install() as tmpdir:
-        args = (
-            os.path.join(tmpdir, "bin", "python"), "-E", "-c",
-            r"from rez.utils.installer import install_as_rez_package;"
-            r"install_as_rez_package('%s')" % repo_path
-        )
-        print(subprocess.check_output(args))
+        if package_type == 'production':
+            args = (
+                os.path.join(tmpdir, "bin", "python"), "-E", "-c",
+                r"from rez.utils.installer import install_as_production_package;"
+                r"install_as_production_package(('%s', '%s'), '%s', pkg_name='%s')" % (
+                    sys.executable, os.path.abspath(__file__), repo_path, name
+                )
+            )
+        elif package_type == 'python':
+            args = (
+                os.path.join(tmpdir, "bin", "python"), "-E", "-c",
+                r"from rez.utils.installer import install_as_rez_package;"
+                r"install_as_rez_package('%s', pkg_name='%s')" % (repo_path, name)
+            )
+        else:
+            raise NotImplementedError(
+                'No idea how to handle package type: "%s"' % package_type
+            )
+        subprocess.check_call(args)
 
 
 if __name__ == "__main__":
@@ -235,10 +248,12 @@ if __name__ == "__main__":
         'repository (and will default to ~/packages instead).')
     pkg_flags = pkg_group.add_mutually_exclusive_group()
     pkg_flags.add_argument(
-        '-p', '--as-rez-package', action="store_true",
+        '-p', '--as-rez-package', dest='rez_package',
+        action="store_const", const="python",
         help="Install rez as a rez Python package: API only (no cli tools).")
     pkg_flags.add_argument(
-        '-P', '--as-production-package', action="store_true",
+        '-P', '--as-production-package', dest='rez_package',
+        action="store_const", const="production",
         help="Install rez as a rez package (contains CLI tools, Python venv).")
     pkg_group.add_argument(
         '-n', '--package-name', default="rez", metavar="PKG", nargs=1,
@@ -260,12 +275,12 @@ if __name__ == "__main__":
     # determine install path
     if opts.DIR:
         path = opts.DIR
-    elif opts.as_rez_package or opts.as_production_package:
+    elif opts.rez_package:
         path = "~/packages"
     else:
         path = "/opt/rez"
 
-    if opts.as_rez_package or opts.as_production_package:
+    if opts.rez_package:
         dest_dir = path
     else:
         dest_dir = path.format(version=_rez_version)
@@ -275,17 +290,11 @@ if __name__ == "__main__":
         dest_dir = os.path.realpath(dest_dir)
 
     # perform the installation
-    if opts.as_rez_package:
-        install_as_rez_package(dest_dir)
-    elif opts.as_production_package:
-        with tmp_install() as tmpdir:
-            args = (
-                os.path.join(tmpdir, "bin", "python"), "-E", "-c",
-                r"from rez.utils.installer import install_as_production_package;"
-                r"install_as_production_package('%s', '%s', pkg_name='%s')" % (
-                    os.path.abspath(__file__), dest_dir, opts.package_name[0]
-                )
-            )
-            print(subprocess.check_output(args))
+    if opts.rez_package:
+        install_as_rez_package(
+            dest_dir,
+            package_type=opts.rez_package,
+            name=opts.package_name[0],
+        )
     else:
         install(dest_dir, print_welcome=True)
