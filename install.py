@@ -5,6 +5,7 @@ production-ready Rez installation in the specified directory.
 from __future__ import print_function
 
 import argparse
+import contextlib
 import os
 import sys
 import shutil
@@ -210,16 +211,22 @@ if __name__ == "__main__":
         '-s', '--keep-symlinks', action="store_true", default=False,
         help="Don't run realpath on the passed DIR to resolve symlinks; "
              "ie, the baked script locations may still contain symlinks")
-    parser.add_argument(
+
+    pkg_group = parser.add_argument_group(
+        title='As Rez Package',
+        description='DIR is expected to be the path to a rez package '
+        'repository (and will default to ~/packages instead).')
+    pkg_flags = pkg_group.add_mutually_exclusive_group()
+    pkg_flags.add_argument(
         '-p', '--as-rez-package', action="store_true",
-        help="Install rez as a rez package. Note that this installs the API "
-        "only (no cli tools), and DIR is expected to be the path to a rez "
-        "package repository (and will default to ~/packages instead).")
-    parser.add_argument(
-        '-P', '--as-production-package', const="rez", metavar="PKG", nargs="?",
-        help="Install rez as a rez package (contains CLI and Python venv). "
-        "DIR is expected to be the path to a rez package repository "
-        "(and will default to ~/packages instead).")
+        help="Install rez as a rez Python package: API only (no cli tools).")
+    pkg_flags.add_argument(
+        '-P', '--as-production-package', action="store_true",
+        help="Install rez as a rez package (contains CLI tools, Python venv).")
+    pkg_group.add_argument(
+        '-n', '--package-name', default="rez", metavar="PKG", nargs=1,
+        help='Rez package name to use rather than "rez".')
+
     parser.add_argument(
         "DIR", nargs='?',
         help="Destination directory. If '{version}' is present, it will be "
@@ -259,7 +266,7 @@ if __name__ == "__main__":
                 os.path.join(tmpdir, "bin", "python"), "-E", "-c",
                 r"from rez.utils.installer import install_as_production_package;"
                 r"install_as_production_package('%s', '%s', pkg_name='%s')" % (
-                    os.path.abspath(__file__), dest_dir, opts.as_production_package
+                    os.path.abspath(__file__), dest_dir, opts.package_name[0]
                 )
             )
             print(subprocess.check_output(args))
