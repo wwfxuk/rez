@@ -158,6 +158,29 @@ def install_rez_from_source(dest_dir):
     run_command([py_executable, "-m", "pip", "install", "."])
 
 
+@contextlib.contextmanager
+def tmp_install(prefix="rez-install-"):
+    """Do a temp production (venv-based) rez install.
+
+    Args:
+        cleanup (bool): Cleanup temp install when exiting context.
+    """
+    from tempfile import mkdtemp
+
+    # do a temp production (venv-based) rez install
+    tmpdir = mkdtemp(prefix=prefix)
+    install(tmpdir)
+
+    try:
+        yield tmpdir
+    finally:
+        # cleanup temp install
+        try:
+            shutil.rmtree(tmpdir)
+        except Exception:
+            pass
+
+
 def install_as_rez_package(repo_path):
     """Installs rez as a rez package.
 
@@ -167,29 +190,13 @@ def install_as_rez_package(repo_path):
     Args:
         repo_path (str): Full path to the package repository to install into.
     """
-    from tempfile import mkdtemp
-
-    # do a temp production (venv-based) rez install
-    tmpdir = mkdtemp(prefix="rez-install-")
-    install(tmpdir)
-
-    try:
-        # This extracts a rez package from the installation. See
-        # rez.utils.installer.install_as_rez_package for more details.
-        #
+    with tmp_install() as tmpdir:
         args = (
             os.path.join(tmpdir, "bin", "python"), "-E", "-c",
             r"from rez.utils.installer import install_as_rez_package;"
             r"install_as_rez_package('%s')" % repo_path
         )
         print(subprocess.check_output(args))
-
-    finally:
-        # cleanup temp install
-        try:
-            shutil.rmtree(tmpdir)
-        except:
-            pass
 
 
 if __name__ == "__main__":
