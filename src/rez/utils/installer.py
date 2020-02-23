@@ -1,15 +1,16 @@
 from __future__ import print_function
 
-import rez
-from rez.package_maker import make_package
-from rez.system import system
 import os.path
 import sys
 import shutil
 import subprocess
 
+import rez
+from rez.package_maker import make_package
+from rez.system import system
 
-def install_as_rez_package(repo_path):
+
+def install_as_rez_package(repo_path, pkg_name='rez'):
     """Install the current rez installation as a rez package.
 
     Note: This is very similar to 'rez-bind rez', however rez-bind is intended
@@ -17,6 +18,7 @@ def install_as_rez_package(repo_path):
 
     Args:
         repo_path (str): Repository to install the rez package into.
+        pkg_name (str): Rez package's package name (Default: rez).
     """
     def commands():
         env.PYTHONPATH.append('{this.root}')
@@ -33,13 +35,16 @@ def install_as_rez_package(repo_path):
     variant = system.variant
     variant.append("python-{0.major}.{0.minor}".format(sys.version_info))
 
-    with make_package("rez", repo_path, make_root=make_root) as pkg:
+    with make_package(pkg_name, repo_path, make_root=make_root) as pkg:
         pkg.version = rez.__version__
         pkg.commands = commands
         pkg.variants = [variant]
+        print("installing rez as Python package under", repo_path)
 
-    print('')
-    print("Success! Rez was installed to %s/rez/%s" % (repo_path, rez.__version__))
+    print()
+    for installed_variant in pkg.installed_variants:
+        install_path = installed_variant.base
+        print("SUCCESS! Rez Python package was installed to", install_path)
 
 
 def install_as_production_package(install_py, repo_path, pkg_name='rez'):
