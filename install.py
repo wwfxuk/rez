@@ -258,7 +258,7 @@ if __name__ == "__main__":
     else:
         path = "/opt/rez"
 
-    if opts.as_rez_package:
+    if opts.as_rez_package or opts.as_production_package:
         dest_dir = path
     else:
         dest_dir = path.format(version=_rez_version)
@@ -270,5 +270,15 @@ if __name__ == "__main__":
     # perform the installation
     if opts.as_rez_package:
         install_as_rez_package(dest_dir)
+    elif opts.as_production_package:
+        with tmp_install() as tmpdir:
+            args = (
+                os.path.join(tmpdir, "bin", "python"), "-E", "-c",
+                r"from rez.utils.installer import install_as_production_package;"
+                r"install_as_production_package('%s', '%s', pkg_name='%s')" % (
+                    os.path.abspath(__file__), dest_dir, opts.as_production_package
+                )
+            )
+            print(subprocess.check_output(args))
     else:
         install(dest_dir, print_welcome=True)
