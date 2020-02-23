@@ -226,6 +226,11 @@ if __name__ == "__main__":
         "only (no cli tools), and DIR is expected to be the path to a rez "
         "package repository (and will default to ~/packages instead).")
     parser.add_argument(
+        '-P', '--as-production-package', const="rez", metavar="PKG", nargs="?",
+        help="Install rez as a rez package (contains CLI and Python venv). "
+        "DIR is expected to be the path to a rez package repository "
+        "(and will default to ~/packages instead).")
+    parser.add_argument(
         "DIR", nargs='?',
         help="Destination directory. If '{version}' is present, it will be "
         "expanded to the rez version. Default: /opt/rez")
@@ -241,7 +246,7 @@ if __name__ == "__main__":
     # determine install path
     if opts.DIR:
         path = opts.DIR
-    elif opts.as_rez_package:
+    elif opts.as_rez_package or opts.as_production_package:
         path = "~/packages"
     else:
         path = "/opt/rez"
