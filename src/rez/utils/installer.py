@@ -54,7 +54,9 @@ def install_as_production_package(install_py, repo_path, pkg_name='rez'):
     for deprecation. Rez itself is a special case.
 
     Args:
+        install_py (list[str]): Command line args to call "install.py".
         repo_path (str): Repository to install the rez package into.
+        pkg_name (str): Rez package's package name (Default: rez).
     """
     def commands():
         import os
@@ -62,7 +64,7 @@ def install_as_production_package(install_py, repo_path, pkg_name='rez'):
         env.PYTHONPATH.append(os.path.join('{this.root}', 'python'))
 
     def make_root(variant, root):
-        subprocess.check_call(['python', install_py, root])
+        subprocess.check_call(list(install_py) + [root])
 
         # copy source
         rez_path = rez.__path__[0]
@@ -82,5 +84,5 @@ def install_as_production_package(install_py, repo_path, pkg_name='rez'):
         pkg.version = rez.__version__
         pkg.commands = commands
 
-    print('SUCCESS! After activating Rez, you can then:')
+    print('SUCCESS! After activated Rez, you can then:')
     print('rez env %s' % pkg_name)
