@@ -294,7 +294,7 @@ if __name__ == "__main__":
         install_as_rez_package(
             dest_dir,
             package_type=opts.rez_package,
-            name=opts.package_name[0],
+            name=opts.package_name,
         )
     else:
         install(dest_dir, print_welcome=True)
