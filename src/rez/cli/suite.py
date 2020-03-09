@@ -61,6 +61,12 @@ def setup_parser(parser, completions=False):
         "--unalias", type=str, metavar="TOOL",
         help="remove an alias for a tool in the suite")
     parser.add_argument(
+        "--reresolve", action='store_true', dest='re_resolve', default=None)
+    parser.add_argument(
+        "--no-reresolve", action='store_false', dest='re_resolve', default=None,
+        help="Re-resolve before running tools from this context "
+             "(will not re-resolve by default for new packages)")
+    parser.add_argument(
         "-b", "--bump", type=str, metavar="NAME",
         help="bump a context, making its tools higher priority than others")
     find_request_action = parser.add_argument(
@@ -90,9 +96,9 @@ def command(opts, parser, extra_arg_groups=None):
     import sys
 
     context_needed = set(("add", "prefix", "suffix", "hide", "unhide", "alias",
-                          "unalias", "interactive"))
+                          "unalias", "interactive", "re_resolve"))
     save_needed = set(("add", "remove", "bump", "prefix", "suffix", "hide",
-                       "unhide", "alias", "unalias"))
+                       "unhide", "alias", "unalias", "re_resolve"))
 
     def _pr(s):
         if opts.verbose:
@@ -152,6 +158,15 @@ def command(opts, parser, extra_arg_groups=None):
     elif _option("remove"):
         _pr("removing context %r..." % opts.remove)
         suite.remove_context(name=opts.remove)
+    elif opts.re_resolve is not None:
+        if opts.context:
+            _pr("%sre-resolving for context %r..." %
+                ("" if opts.re_resolve else "NOT ", opts.context))
+            suite.set_context_re_resolve(name=opts.context,
+                                         re_resolve=opts.re_resolve)
+        else:
+            parser.error("--context must be supplied when using "
+                         "--[no-]reresolve")
     elif _option("bump"):
         _pr("bumping context %r..." % opts.bump)
         suite.bump_context(name=opts.bump)
@@ -190,7 +205,7 @@ def command(opts, parser, extra_arg_groups=None):
         suite.print_info(verbose=opts.verbose)
         sys.exit(0)
 
-    do_save = any(getattr(opts, x) for x in save_needed)
+    do_save = any(getattr(opts, x) is not None for x in save_needed)
     if do_save:
         _pr("saving suite to %r..." % opts.DIR)
         suite.save(opts.DIR)
