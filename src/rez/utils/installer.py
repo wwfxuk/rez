@@ -41,7 +41,7 @@ def install_as_rez_package(repo_path, pkg_name='rez'):
         pkg.variants = [variant]
         print("installing rez as Python package under", repo_path)
 
-    print()
+    print('')
     for installed_variant in pkg.installed_variants:
         install_path = installed_variant.base
         print("SUCCESS! Rez Python package was installed to", install_path)
