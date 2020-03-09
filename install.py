@@ -190,26 +190,29 @@ def install_as_rez_package(repo_path, package_type='python', name='rez'):
 
     Args:
         repo_path (str): Full path to the package repository to install into.
+        package_type (str): Either "python" or "production" for now.
+        name (str): Name of the rez package to create.
     """
+    if package_type == 'python':
+        script = (
+            r"from rez.utils.installer import install_as_rez_package;"
+            r"install_as_rez_package('%s', pkg_name='%s')" % (repo_path, name)
+        )
+    elif package_type == 'production':
+        script = (
+            r"from rez.utils.installer import install_as_production_package;"
+            r"install_as_production_package(('%s', '%s'), '%s', pkg_name='%s')"
+        )
+        script = script % (
+            sys.executable, os.path.abspath(__file__), repo_path, name
+        )
+    else:
+        raise NotImplementedError(
+            'No idea how to handle package type: "%s"' % package_type
+        )
+
     with tmp_install() as tmpdir:
-        if package_type == 'production':
-            args = (
-                os.path.join(tmpdir, "bin", "python"), "-E", "-c",
-                r"from rez.utils.installer import install_as_production_package;"
-                r"install_as_production_package(('%s', '%s'), '%s', pkg_name='%s')" % (
-                    sys.executable, os.path.abspath(__file__), repo_path, name
-                )
-            )
-        elif package_type == 'python':
-            args = (
-                os.path.join(tmpdir, "bin", "python"), "-E", "-c",
-                r"from rez.utils.installer import install_as_rez_package;"
-                r"install_as_rez_package('%s', pkg_name='%s')" % (repo_path, name)
-            )
-        else:
-            raise NotImplementedError(
-                'No idea how to handle package type: "%s"' % package_type
-            )
+        args = (os.path.join(tmpdir, "bin", "python"), "-E", "-c", script)
         subprocess.check_call(args)
 
 
