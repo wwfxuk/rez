@@ -25,7 +25,7 @@ def bind(path, version_range=None, opts=None, parser=None):
             ('XDG_CONFIG_DIRS', ['/etc/xdg']),
             ('XDG_CACHE_HOME', ['$HOME/.cache']),
         )
-        for xdg_var, defaults in xdg_defaults.items():
+        for xdg_var, defaults in xdg_defaults:
             invalid_var = undefined(xdg_var) or not str(env[xdg_var])
             paths = [] if invalid_var else str(env[xdg_var]).split(os.pathsep)
             append = len(defaults) != 1
