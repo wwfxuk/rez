@@ -1,5 +1,19 @@
 # Change Log
 
+## 2.54.0+wwfx.1.0.0 (2020-03-10)
+
+[Source](https://github.com/wwfxuk/rez/tree/2.54.0+wwfx.1.0.0) | [Diff](https://github.com/wwfxuk/rez/compare/2.54.0...2.54.0+wwfx.1.0.0)
+
+
+**Merged**
+
+- 29c9ecf8 from [j0yu/install-as-production-package](https://github.com/j0yu/bleeding-rez/tree/install-as-production-package)
+- 6e1c7419 from [wwfxuk/feature/suite-re-resolve](https://github.com/wwfxuk/rez/tree/feature/suite-re-resolve)
+- f61dfee8 from [wwfxuk/wiki-merge-utils](https://github.com/wwfxuk/rez/tree/wiki-merge-utils)
+- d3f9c6b5 from [wwfxuk/build-sphinx](https://github.com/wwfxuk/rez/tree/build-sphinx)
+
+
+
 ## 2.54.0 (2020-02-20)
 [Source](https://github.com/nerdvegas/rez/tree/2.54.0) | [Diff](https://github.com/nerdvegas/rez/compare/2.53.1...2.54.0)
 
