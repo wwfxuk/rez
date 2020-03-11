@@ -40,9 +40,9 @@ def bind(path, version_range=None, opts=None, parser=None):
 
     with make_package("platform", path) as pkg:
         pkg.version = version
-        if version == 'linux':
+        pkg.relocatable = True
+        if system.platform == 'linux':
             pkg.post_commands = post_commands
-            pkg.relocatable = True
 
     return pkg.installed_variants
 
