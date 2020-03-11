@@ -14,6 +14,7 @@ def bind(path, version_range=None, opts=None, parser=None):
 
     with make_package("arch", path) as pkg:
         pkg.version = version
+        pkg.relocatable = True
 
     return pkg.installed_variants
 

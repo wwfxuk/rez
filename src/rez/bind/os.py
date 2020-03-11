@@ -16,6 +16,7 @@ def bind(path, version_range=None, opts=None, parser=None):
         pkg.version = version
         pkg.requires = ["platform-%s" % system.platform,
                          "arch-%s" % system.arch]
+        pkg.relocatable = True
 
     return pkg.installed_variants
 
