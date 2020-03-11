@@ -42,6 +42,7 @@ def bind(path, version_range=None, opts=None, parser=None):
         pkg.version = version
         if version == 'linux':
             pkg.post_commands = post_commands
+            pkg.relocatable = True
 
     return pkg.installed_variants
 
