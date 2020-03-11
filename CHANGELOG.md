@@ -1,5 +1,18 @@
 # Change Log
 
+## 2.54.0+wwfx.1.1.0 (2020-03-11)
+
+[Source](https://github.com/wwfxuk/rez/tree/2.54.0+wwfx.1.1.0) | [Diff](https://github.com/wwfxuk/rez/compare/2.54.0+wwfx.1.0.0...2.54.0+wwfx.1.1.0)
+
+**Fixed**
+
+- (wiki) Remove any `refs*/` branch name prefix.
+
+**Merged**
+
+- [Added post_commands for XDG](https://github.com/wwfxuk/rez/pull/5), os bind packages are marked as relocatable.
+
+
 ## 2.54.0+wwfx.1.0.0 (2020-03-10)
 
 [Source](https://github.com/wwfxuk/rez/tree/2.54.0+wwfx.1.0.0) | [Diff](https://github.com/wwfxuk/rez/compare/2.54.0...2.54.0+wwfx.1.0.0)
