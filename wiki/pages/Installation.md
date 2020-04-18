@@ -26,15 +26,25 @@ source /opt/rez/completion/complete.sh
 
 ## Installation Via Pip
 
-It is possible to install rez with pip, like so:
+It is possible to install rez with pip, like so (from source root directory):
 
 ```
-]$ pip install rez
+]$ pip install --target /opt/rez .
 ```
 
-However, this comes with a caveat - rez command line tools _are not guaranteed
-to work correctly_ once inside a rez environment (ie after using the `rez-env`
-command). The reasons are given in the next section.
+The environment variables to activate `rez` will be slightly different:
+
+- Add `/opt/rez/bin` to `PATH`
+- Add `/opt/rez` to `PYTHONPATH`
+
+Alternatively, if you already have `rez` setup and have `pip>=19` available, 
+you can then install `rez` as a `rez` package by using:
+
+    ]$ rez-pip --install .
+
+However, these methods comes with a caveat - rez command line tools _are not 
+guaranteed to work correctly_ once inside a rez environment (ie after using the 
+`rez-env` command). The reasons are given in the next section.
 
 Pip installation is adequate however, if all you require is the rez API, or you
 don't require its command line tools to be available within a resolved environment.
