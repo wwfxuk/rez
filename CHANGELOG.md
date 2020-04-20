@@ -1,5 +1,18 @@
 # Change Log
 
+## 2.58.0+wwfx.1.0.0 (2020-04-20)
+[Source](https://github.com/wwfxuk/rez/tree/2.58.0+wwfx.1.0.0) | [Diff](https://github.com/wwfxuk/rez/compare/2.58.0...2.58.0+wwfx.1.0.0)
+
+**Merged**
+
+- 1bef62f9 from [feature/suite-re-resolve](https://github.com/wwfxuk/feature/suite-re-resolve)
+- caed0aa0 from [build-sphinx](https://github.com/wwfxuk/build-sphinx)
+- 29f5ea4b from [wiki-merge-utils](https://github.com/wwfxuk/wiki-merge-utils)
+- 78fd2aff from [linux-setup-xdg-paths](https://github.com/wwfxuk/linux-setup-xdg-paths)
+- 089aa8f0 from [docs/pip-install](https://github.com/wwfxuk/docs/pip-install)
+- 21e1bfdc from [install-as-production-package](https://github.com/j0yu/install-as-production-package)
+- ce3c9da8 from [fix-826-pip-fallback](https://github.com/j0yu/fix-826-pip-fallback)
+
 ## 2.58.0 (2020-04-15)
 [Source](https://github.com/nerdvegas/rez/tree/2.58.0) | [Diff](https://github.com/nerdvegas/rez/compare/2.57.0...2.58.0)
 
@@ -63,6 +76,33 @@
 
 - tests "on_variants" not working as expected in some cases [\#841](https://github.com/nerdvegas/rez/issues/841)
 - pre_test_commands [\#843](https://github.com/nerdvegas/rez/issues/843)
+
+
+## 2.54.0+wwfx.1.1.0 (2020-03-11)
+
+[Source](https://github.com/wwfxuk/rez/tree/2.54.0+wwfx.1.1.0) | [Diff](https://github.com/wwfxuk/rez/compare/2.54.0+wwfx.1.0.0...2.54.0+wwfx.1.1.0)
+
+**Fixed**
+
+- (wiki) Remove any `refs*/` branch name prefix.
+
+**Merged**
+
+- [Added post_commands for XDG](https://github.com/wwfxuk/rez/pull/5), os bind packages are marked as relocatable.
+
+
+## 2.54.0+wwfx.1.0.0 (2020-03-10)
+
+[Source](https://github.com/wwfxuk/rez/tree/2.54.0+wwfx.1.0.0) | [Diff](https://github.com/wwfxuk/rez/compare/2.54.0...2.54.0+wwfx.1.0.0)
+
+
+**Merged**
+
+- 29c9ecf8 from [j0yu/install-as-production-package](https://github.com/j0yu/bleeding-rez/tree/install-as-production-package)
+- 6e1c7419 from [wwfxuk/feature/suite-re-resolve](https://github.com/wwfxuk/rez/tree/feature/suite-re-resolve)
+- f61dfee8 from [wwfxuk/wiki-merge-utils](https://github.com/wwfxuk/rez/tree/wiki-merge-utils)
+- d3f9c6b5 from [wwfxuk/build-sphinx](https://github.com/wwfxuk/rez/tree/build-sphinx)
+
 
 ## 2.54.0 (2020-02-20)
 [Source](https://github.com/nerdvegas/rez/tree/2.54.0) | [Diff](https://github.com/nerdvegas/rez/compare/2.53.1...2.54.0)
