@@ -32,6 +32,16 @@ It is possible to install rez with pip, like so (from source root directory):
 ]$ pip install --target /opt/rez .
 ```
 
+The `.` (dot) can also be replaced with link to the GitHub repository, 
+e.g. choose from:
+
+  - `git+https://github.com/nerdvegas/rez.git` if you have git installed
+  - `https://github.com/nerdvegas/rez/archive/master.zip`
+  - `https://github.com/nerdvegas/rez/archive/master.tar.gz`
+
+> [[media/icons/warning.png]] The [PyPi rez](https://pypi.org/project/rez) is 
+> not up to date as of writing. Avoid `pip install rez`
+
 The environment variables to activate `rez` will be slightly different:
 
 - Add `/opt/rez/bin` to `PATH`
