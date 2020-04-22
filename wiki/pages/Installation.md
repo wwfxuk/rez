@@ -37,29 +37,29 @@ The environment variables to activate `rez` will be slightly different:
 - Add `/opt/rez/bin` to `PATH`
 - Add `/opt/rez` to `PYTHONPATH`
 
-Alternatively, if you already have `rez` setup and have `pip>=19` available, 
+Alternatively, if you already have `rez` setup and have `pip>=19` available,
 you can then install `rez` as a `rez` package by using:
 
     ]$ rez-pip --install .
 
-However, these methods comes with a caveat - rez command line tools _are not 
-guaranteed to work correctly_ once inside a rez environment (ie after using the 
-`rez-env` command). The reasons are given in the next section.
-
 Pip installation is adequate however, if all you require is the rez API, or you
-don't require its command line tools to be available within a resolved environment.
+don't require its command line tools (`rez-context`, `rez-search`, `rez-view`,
+etc) to be available within a resolved environment.
 
-Note that running pip-installed rez command line tools will print a warning like so:
+> [[media/icons/warning.png]] For these pip based installs, rez command line
+> tools _are not guaranteed to work correctly_ once inside a rez environment
+> (ie after using the `rez-env` command).
+>
+> See [Why Not Pip For Production?](#why-not-pip-for-production) below.
+> You will also be warned with the following message in the terminal:
+> ```
+> Pip-based rez installation detected. Please be aware that rez command line tools
+> are not guaranteed to function correctly in this case. See
+> https://github.com/nerdvegas/rez/wiki/Installation#why-not-pip-for-production
+> for further details.
+> ```
 
-```
-Pip-based rez installation detected. Please be aware that rez command line tools
-are not guaranteed to function correctly in this case. See
-https://github.com/nerdvegas/rez/wiki/Installation#why-not-pip-for-production
-for futher details.
-```
-
-
-## Why Not Pip For Production?
+### Why Not Pip For Production?
 
 Rez is not a normal python package. Although it can successfully be installed
 using standard mechanisms such as pip, this comes with a number of caveats.
