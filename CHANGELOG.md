@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.58.0+wwfx.1.0.1 (2020-04-24)
+[Source](https://github.com/wwfxuk/rez/tree/2.58.0+wwfx.1.0.1) | [Diff](https://github.com/wwfxuk/rez/compare/2.58.0+wwfx.1.0.0...2.58.0+wwfx.1.0.1)
+
+### Fixed
+
+- Actually bump version number correctly
+
+
 ## 2.58.0+wwfx.1.0.0 (2020-04-20)
 [Source](https://github.com/wwfxuk/rez/tree/2.58.0+wwfx.1.0.0) | [Diff](https://github.com/wwfxuk/rez/compare/2.58.0...2.58.0+wwfx.1.0.0)
 
