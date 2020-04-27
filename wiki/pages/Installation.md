@@ -44,8 +44,20 @@ e.g. choose from:
 
 The environment variables to activate `rez` will be slightly different:
 
-- Add `/opt/rez/bin` to `PATH`
-- Add `/opt/rez` to `PYTHONPATH`
+1. Add `/opt/rez` to `PYTHONPATH` for API e.g. `python -c 'import rez`
+2. Add `/opt/rez/bin` to `PATH` for CLI, e.g. `rez-env`
+  > [[media/icons/warning.png]] For these pip based installs, rez command line
+  > tools **are not guaranteed to work correctly** inside a rez environment,
+  > i.e. `rez-env` then running `rez-context` inside sub-shell.
+  >
+  > See [Why Not Pip For Production?](#why-not-pip-for-production) below.
+  > You will also be warned with the following message in the terminal:
+  > ```
+  > Pip-based rez installation detected. Please be aware that rez command line
+  > tools are not guaranteed to function correctly in this case. See
+  > https://github.com/nerdvegas/rez/wiki/Installation#why-not-pip-for-production
+  > for further details.
+  > ```
 
 Alternatively, if you already have `rez` setup and have `pip>=19` available,
 you can then install `rez` as a `rez` package by using:
@@ -55,19 +67,6 @@ you can then install `rez` as a `rez` package by using:
 Pip installation is adequate however, if all you require is the rez API, or you
 don't require its command line tools (`rez-context`, `rez-search`, `rez-view`,
 etc) to be available within a resolved environment.
-
-> [[media/icons/warning.png]] For these pip based installs, rez command line
-> tools _are not guaranteed to work correctly_ once inside a rez environment
-> (ie after using the `rez-env` command).
->
-> See [Why Not Pip For Production?](#why-not-pip-for-production) below.
-> You will also be warned with the following message in the terminal:
-> ```
-> Pip-based rez installation detected. Please be aware that rez command line tools
-> are not guaranteed to function correctly in this case. See
-> https://github.com/nerdvegas/rez/wiki/Installation#why-not-pip-for-production
-> for further details.
-> ```
 
 ### Why Not Pip For Production?
 
