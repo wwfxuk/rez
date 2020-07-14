@@ -13,8 +13,8 @@ jobs:
       run: |
         git config --global color.ui always
         git remote rename origin wwfxuk
-        git remote add j0yu git@github.com:j0yu/bleeding-rez.git
-        git remote add origin git@github.com:nerdvegas/rez.git
+        git remote add j0yu https://github.com/j0yu/bleeding-rez.git
+        git remote add origin https://github.com/nerdvegas/rez.git
         git remote update
 
     - name: Auto Update All
@@ -26,7 +26,7 @@ jobs:
         REBASED=()
         MERGED_TEXT=""
         WWFX_REMOTE="wwfxuk"
-        WWFX_REMOTE_REPO="$(git remote get-url $WWFX_REMOTE | sed -n '/.*github\.com/ { s/.*://; s/\.git.*//p; q}')"
+        WWFX_REMOTE_REPO="$(git remote get-url $WWFX_REMOTE | sed -n '/.*github\.com/ { s|.*github.com.||; s/\.git.*//p; q}')"
 
         LATEST_TAG="2.60.0"
         WWFX="master"
@@ -61,7 +61,7 @@ jobs:
                 COMMIT="$(git rev-parse --short ${BRANCH})"
                 [ -z "$REMOTE" ] && MERGED_TEXT+="- ${COMMIT} from \`${BRANCH}\`.\n" || {
                     echo git push -uf "$REMOTE" "$BRANCH":"${UPSTREAM#*/}" && {
-                        GITHUB_REPO="$(git remote get-url ${REMOTE} | sed -n '/.*github\.com/ { s/.*://; s/\.git.*//p; q}')"
+                        GITHUB_REPO="$(git remote get-url ${REMOTE} | sed -n '/.*github\.com/ { s|.*github.com.||; s/\.git.*//p; q}')"
                         [ -z "$GITHUB_REPO" ] || MERGED_TEXT+="- ${COMMIT} from [${BRANCH}](https://github.com/${GITHUB_REPO}/tree/${BRANCH}).\n"
                     }
                 }
