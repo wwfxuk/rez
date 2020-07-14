@@ -29,10 +29,10 @@ jobs:
         WWFX_REMOTE_REPO="$(git remote get-url $WWFX_REMOTE | sed -n '/.*github\.com/ { s|.*github.com.||; s/\.git.*//p; q}')"
 
         LATEST_TAG="2.60.0"
-        WWFX="master"
-        COMMON_PARENT="$(git merge-base $LATEST_TAG $WWFX)"
+        WWFX_MASTER="$WWFX_REMOTE"/master
+        COMMON_PARENT="$(git merge-base $LATEST_TAG $WWFX_MASTER)"
         readarray -t MERGES < <(
-            git log --format="%D" "$COMMON_PARENT".."$WWFX" \
+            git log --format="%D" "$COMMON_PARENT".."$WWFX_MASTER" \
             | sed -n "/tag/d; s/, /,/p"
         )
 
