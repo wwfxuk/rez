@@ -5,6 +5,7 @@ production-ready Rez installation in the specified directory.
 from __future__ import print_function
 
 import argparse
+import contextlib
 import os
 import sys
 import shutil
@@ -175,7 +176,30 @@ def install_rez_from_source(dest_dir):
     run_command([py_executable, "-m", "pip", "install", "."])
 
 
-def install_as_rez_package(repo_path):
+@contextlib.contextmanager
+def tmp_install(prefix="rez-install-"):
+    """Do a temp production (venv-based) rez install.
+
+    Args:
+        cleanup (bool): Cleanup temp install when exiting context.
+    """
+    from tempfile import mkdtemp
+
+    # do a temp production (venv-based) rez install
+    tmpdir = mkdtemp(prefix=prefix)
+    install(tmpdir)
+
+    try:
+        yield tmpdir
+    finally:
+        # cleanup temp install
+        try:
+            shutil.rmtree(tmpdir)
+        except Exception:
+            pass
+
+
+def install_as_rez_package(repo_path, package_type='python', name='rez'):
     """Installs rez as a rez package.
 
     Note that this can be used to install new variants of rez into an existing
@@ -183,30 +207,29 @@ def install_as_rez_package(repo_path):
 
     Args:
         repo_path (str): Full path to the package repository to install into.
+        package_type (str): Either "python" or "production" for now.
+        name (str): Name of the rez package to create.
     """
-    from tempfile import mkdtemp
-
-    # do a temp production (venv-based) rez install
-    tmpdir = mkdtemp(prefix="rez-install-")
-    install(tmpdir)
-
-    try:
-        # This extracts a rez package from the installation. See
-        # rez.utils.installer.install_as_rez_package for more details.
-        #
-        args = (
-            os.path.join(tmpdir, "bin", "python"), "-E", "-c",
+    if package_type == "python":
+        script = (
             r"from rez.utils.installer import install_as_rez_package;"
-            r"install_as_rez_package('%s')" % repo_path
+            r"install_as_rez_package(r'%s', pkg_name=r'%s')" % (repo_path, name)
         )
-        print(subprocess.check_output(args))
+    elif package_type == "production":
+        script = (
+            r"from rez.utils.installer import install_as_production_package;"
+            r"install_as_production_package((r'%s', r'%s'), r'%s', pkg_name=r'%s')"
+        )
+        script = script % (sys.executable, os.path.abspath(__file__), repo_path, name)
+    else:
+        raise NotImplementedError(
+            'No idea how to handle package type: "%s"' % package_type
+        )
 
-    finally:
-        # cleanup temp install
-        try:
-            shutil.rmtree(tmpdir)
-        except:
-            pass
+    with tmp_install() as tmpdir:
+        bin_folder = "Scripts" if os.name == "nt" else "bin"
+        args = (os.path.join(tmpdir, bin_folder, "python"), "-E", "-c", script)
+        subprocess.check_call(args)
 
 
 if __name__ == "__main__":
@@ -220,11 +243,24 @@ if __name__ == "__main__":
         '-s', '--keep-symlinks', action="store_true", default=False,
         help="Don't run realpath on the passed DIR to resolve symlinks; "
              "ie, the baked script locations may still contain symlinks")
-    parser.add_argument(
-        '-p', '--as-rez-package', action="store_true",
-        help="Install rez as a rez package. Note that this installs the API "
-        "only (no cli tools), and DIR is expected to be the path to a rez "
-        "package repository (and will default to ~/packages instead).")
+
+    pkg_group = parser.add_argument_group(
+        title='As Rez Package',
+        description='DIR is expected to be the path to a rez package '
+        'repository (and will default to ~/packages instead).')
+    pkg_flags = pkg_group.add_mutually_exclusive_group()
+    pkg_flags.add_argument(
+        '-p', '--as-rez-package', dest='rez_package',
+        action="store_const", const="python",
+        help="Install rez as a rez Python package: API only (no cli tools).")
+    pkg_flags.add_argument(
+        '-P', '--as-production-package', dest='rez_package',
+        action="store_const", const="production",
+        help="Install rez as a rez package (contains CLI tools, Python venv).")
+    pkg_group.add_argument(
+        '-n', '--package-name', default="rez", metavar="PKG", nargs=1,
+        help='Rez package name to use rather than "rez".')
+
     parser.add_argument(
         "DIR", nargs='?',
         help="Destination directory. If '{version}' is present, it will be "
@@ -241,12 +277,12 @@ if __name__ == "__main__":
     # determine install path
     if opts.DIR:
         path = opts.DIR
-    elif opts.as_rez_package:
+    elif opts.rez_package:
         path = "~/packages"
     else:
         path = "/opt/rez"
 
-    if opts.as_rez_package:
+    if opts.rez_package:
         dest_dir = path
     else:
         dest_dir = path.format(version=_rez_version)
@@ -256,7 +292,11 @@ if __name__ == "__main__":
         dest_dir = os.path.realpath(dest_dir)
 
     # perform the installation
-    if opts.as_rez_package:
-        install_as_rez_package(dest_dir)
+    if opts.rez_package:
+        install_as_rez_package(
+            dest_dir,
+            package_type=opts.rez_package,
+            name=opts.package_name,
+        )
     else:
         install(dest_dir, print_welcome=True)
