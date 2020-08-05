@@ -69,14 +69,13 @@ done
     WWFX_CHANGELOG_ENTRY="$(git show ${WWFX_MASTER}:CHANGELOG.md | grep -m 1 -oP '.*(?=\+wwfx)')"
     # e.g. ## 2.58.0
 
-    bash
     cat \
         <(git show HEAD:CHANGELOG.md | sed "/${WWFX_CHANGELOG_ENTRY}/ q" | head -n-1) \
-        <(git show ${WWFX_REMOTE}:CHANGELOG.md | sed -n '/+wwfx/,$ p') \
+        <(git show ${WWFX_MASTER}:CHANGELOG.md | sed -n '/+wwfx/,$ p') \
     | sed "/^## ${LATEST_TAG}/ i \
-    ## ${LATEST_TAG}+wwfx.1.0.0 ($(date +%Y-%m-%d))\n\
-    [Source](https://github.com/${WWFX_REMOTE}/rez/tree/${LATEST_TAG}+wwfx.1.0.0) | [Diff](https://github.com/${WWFX_REMOTE}/rez/compare/${LATEST_TAG}...${LATEST_TAG}+wwfx.1.0.0)\n\n\
-    **Merged**\n${MERGED_TEXT}\n\n" > CHANGELOG.md
+## ${LATEST_TAG}+wwfx.1.0.0 ($(date +%Y-%m-%d))\n\
+[Source](https://github.com/${WWFX_REMOTE_REPO}/tree/${LATEST_TAG}+wwfx.1.0.0) | [Diff](https://github.com/${WWFX_REMOTE_REPO}/compare/${LATEST_TAG}...${LATEST_TAG}+wwfx.1.0.0)\n\n\
+**Merged**\n${MERGED_TEXT}\n\n" > CHANGELOG.md
     git commit --all -m "Updated Changelogs, version to ${LATEST_TAG}+wwfx.1.0.0"
     echo git push --force -u "$WWFX_REMOTE" master:master
 }
