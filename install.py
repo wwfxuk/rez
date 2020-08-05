@@ -11,7 +11,6 @@ import sys
 import shutil
 import os.path
 import subprocess
-import tempfile
 
 
 source_path = os.path.dirname(os.path.realpath(__file__))
@@ -213,15 +212,13 @@ def install_as_rez_package(repo_path, package_type='python', name='rez'):
     """
     if package_type == "python":
         script = (
-            r"# -*- coding: utf-8 -*-\n"
             r"from rez.utils.installer import install_as_rez_package;"
-            r"install_as_rez_package('%s', pkg_name='%s')" % (repo_path, name)
+            r"install_as_rez_package(r'%s', pkg_name=r'%s')" % (repo_path, name)
         )
     elif package_type == "production":
         script = (
-            r"# -*- coding: utf-8 -*-\n"
             r"from rez.utils.installer import install_as_production_package;"
-            r"install_as_production_package(('%s', '%s'), '%s', pkg_name='%s')"
+            r"install_as_production_package((r'%s', r'%s'), r'%s', pkg_name=r'%s')"
         )
         script = script % (sys.executable, os.path.abspath(__file__), repo_path, name)
     else:
@@ -229,18 +226,10 @@ def install_as_rez_package(repo_path, package_type='python', name='rez'):
             'No idea how to handle package type: "%s"' % package_type
         )
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".py") as script_file:
-        script_file.write(script)
-        # script_file.flush()
-        script_file.seek(0)
-
-        with tmp_install() as tmpdir:
-            bin_folder = "Scripts" if os.name == "nt" else "bin"
-            args = (os.path.join(tmpdir, bin_folder, "python"), "-E", "-")
-            # args = (os.path.join(tmpdir, bin_folder, "python"), "-E", script_file.name)
-            # args = (os.path.join(tmpdir, bin_folder, "python"), "-E", "-c", script)
-            # subprocess.check_call(args)
-            subprocess.check_call(args, stdin=script_file)
+    with tmp_install() as tmpdir:
+        bin_folder = "Scripts" if os.name == "nt" else "bin"
+        args = (os.path.join(tmpdir, bin_folder, "python"), "-E", "-c", script)
+        subprocess.check_call(args)
 
 
 if __name__ == "__main__":
