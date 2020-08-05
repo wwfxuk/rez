@@ -47,7 +47,7 @@ post_rebase_success() {
         git push -uf "$REMOTE" "$BRANCH":"${UPSTREAM#*/}"
 
         GITHUB_REPO="$(git remote get-url ${REMOTE} | sed -n '/.*github\.com/ { s|.*github.com.||; s/\.git.*//p; q}')"
-        [ -z "$GITHUB_REPO" ] || BRANCH_MERGED_TEXT="- ${COMMIT} from [${BRANCH}](https://github.com/${GITHUB_REPO}/tree/${BRANCH}).\n"
+	[ -z "$GITHUB_REPO" ] || BRANCH_MERGED_TEXT="- [${COMMIT}](https://github.com/${WWFX_REMOTE_REPO}/compare/${LATEST_TAG}...${COMMIT}) from [${BRANCH}](https://github.com/${GITHUB_REPO}/tree/${BRANCH}).\n"
     }
     MERGED_TEXT+="$BRANCH_MERGED_TEXT"
 }
@@ -96,7 +96,7 @@ done
     # Setup sed expression for inserting changelog
     NEW_CHANGELOG_ENTRY="## ${LATEST_TAG}+wwfx.1.0.0 ($(date +%Y-%m-%d))\n\
 [Source](https://github.com/${WWFX_REMOTE_REPO}/tree/${LATEST_TAG}+wwfx.1.0.0) | [Diff](https://github.com/${WWFX_REMOTE_REPO}/compare/${LATEST_TAG}...${LATEST_TAG}+wwfx.1.0.0)\n\n\
-**Merged**\n\n${MERGED_TEXT}\n\n"
+**Merged**\n\n${MERGED_TEXT}"
     WWFX_CHANGELOG_COMMIT=$(git log --all -G'.*\+wwfx' --format="%h" -- CHANGELOG.md | head -1)
 
     # Setup latest official version that WWFX forked from
