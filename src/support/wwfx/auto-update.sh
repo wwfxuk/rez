@@ -69,6 +69,7 @@ done
     WWFX_CHANGELOG_ENTRY="$(git show ${WWFX_MASTER}:CHANGELOG.md | grep -m 1 -oP '.*(?=\+wwfx)')"
     # e.g. ## 2.58.0
 
+    bash
     cat \
         <(git show HEAD:CHANGELOG.md | sed "/${WWFX_CHANGELOG_ENTRY}/ q" | head -n-1) \
         <(git show ${WWFX_REMOTE}:CHANGELOG.md | sed -n '/+wwfx/,$ p') \
