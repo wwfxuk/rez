@@ -1,8 +1,4 @@
-# -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
 from __future__ import print_function
-from __future__ import unicode_literals
 
 import os.path
 import sys
@@ -14,7 +10,7 @@ from rez.package_maker import make_package
 from rez.system import system
 
 
-def install_as_rez_package(repo_path, pkg_name="rez"):
+def install_as_rez_package(repo_path, pkg_name='rez'):
     """Install the current rez installation as a rez package.
 
     Note: This is very similar to 'rez-bind rez', however rez-bind is intended
@@ -24,9 +20,8 @@ def install_as_rez_package(repo_path, pkg_name="rez"):
         repo_path (str): Repository to install the rez package into.
         pkg_name (str): Rez package's package name (Default: rez).
     """
-
     def commands():
-        env.PYTHONPATH.append("{this.root}")
+        env.PYTHONPATH.append('{this.root}')
 
     def make_root(variant, root):
         # copy source
@@ -46,13 +41,13 @@ def install_as_rez_package(repo_path, pkg_name="rez"):
         pkg.variants = [variant]
         print("installing rez as Python package under", repo_path)
 
-    print("")
+    print('')
     for installed_variant in pkg.installed_variants:
         install_path = installed_variant.base
         print("SUCCESS! Rez Python package was installed to", install_path)
 
 
-def install_as_production_package(install_py, repo_path, pkg_name="rez"):
+def install_as_production_package(install_py, repo_path, pkg_name='rez'):
     """Install a production rez installation as a rez package.
 
     Note: This is very similar to 'rez-bind rez', however rez-bind is intended
@@ -63,10 +58,8 @@ def install_as_production_package(install_py, repo_path, pkg_name="rez"):
         repo_path (str): Repository to install the rez package into.
         pkg_name (str): Rez package's package name (Default: rez).
     """
-
     def commands():
         import os
-
         bin_folder = "Scripts" if os.name == "nt" else "bin"
         env.PATH.append(os.path.join("{this.root}", bin_folder, "rez"))
         env.PYTHONPATH.append(os.path.join("{this.root}", "python"))
@@ -84,7 +77,7 @@ def install_as_production_package(install_py, repo_path, pkg_name="rez"):
         shutil.copytree(rez_path, os.path.join(py_root, "rez"))
         shutil.copytree(rezplugins_path, os.path.join(py_root, "rezplugins"))
 
-        print('Setting up "%s"' % os.path.join(variant.base, "package.py"))
+        print('Setting up "%s"' % os.path.join(variant.base, 'package.py'))
 
     with make_package(pkg_name, repo_path, make_root=make_root) as pkg:
         # Production Python venv probably works for same platform + arch combo
@@ -92,5 +85,5 @@ def install_as_production_package(install_py, repo_path, pkg_name="rez"):
         pkg.version = rez.__version__
         pkg.commands = commands
 
-    print("SUCCESS! After activated Rez, you can then:")
-    print("rez env %s" % pkg_name)
+    print('SUCCESS! After activated Rez, you can then:')
+    print('rez env %s' % pkg_name)
