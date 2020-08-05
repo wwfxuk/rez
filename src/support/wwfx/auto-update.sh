@@ -6,7 +6,7 @@ REBASED=()
 MERGED_TEXT=""
 WWFX_REMOTE="${WWFX_REMOTE:-wwfxuk}"
 WWFX_REMOTE_REPO="$(git remote get-url $WWFX_REMOTE | sed -n '/.*github\.com/ { s|.*github.com.||; s/\.git.*//p; q}')"
-LATEST_TAG="${LATEST_TAG:-2.60.0}"
+LATEST_TAG=${LATEST_TAG:-$(curl -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/nerdvegas/rez/releases/latest | grep -oP '(?<="tag_name": ")[^"]+')}
 WWFX_MASTER="$WWFX_REMOTE"/master
 COMMON_PARENT="$(git merge-base $LATEST_TAG $WWFX_MASTER)"
 
@@ -38,7 +38,7 @@ do
         REBASED+=("$BRANCH")
         COMMIT="$(git rev-parse --short ${BRANCH})"
         [ -z "$REMOTE" ] && MERGED_TEXT+="- ${COMMIT} from \`${BRANCH}\`.\n" || {
-            echo git push -uf "$REMOTE" "$BRANCH":"${UPSTREAM#*/}" && {
+            git push -uf "$REMOTE" "$BRANCH":"${UPSTREAM#*/}" && {
                 GITHUB_REPO="$(git remote get-url ${REMOTE} | sed -n '/.*github\.com/ { s|.*github.com.||; s/\.git.*//p; q}')"
                 [ -z "$GITHUB_REPO" ] || MERGED_TEXT+="- ${COMMIT} from [${BRANCH}](https://github.com/${GITHUB_REPO}/tree/${BRANCH}).\n"
             }
@@ -77,5 +77,5 @@ done
 [Source](https://github.com/${WWFX_REMOTE_REPO}/tree/${LATEST_TAG}+wwfx.1.0.0) | [Diff](https://github.com/${WWFX_REMOTE_REPO}/compare/${LATEST_TAG}...${LATEST_TAG}+wwfx.1.0.0)\n\n\
 **Merged**\n${MERGED_TEXT}\n\n" > CHANGELOG.md
     git commit --all -m "Updated Changelogs, version to ${LATEST_TAG}+wwfx.1.0.0"
-    echo git push --force -u "$WWFX_REMOTE" master:master
+    git push --force -u "$WWFX_REMOTE" master:master
 }
