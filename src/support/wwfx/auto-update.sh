@@ -10,7 +10,15 @@ WWFX_REMOTE_REPO="$(git remote get-url $WWFX_REMOTE | sed -n '/.*github\.com/ { 
 
 # Get git tag of latest nerdvegas release
 LATEST_TAG=${LATEST_TAG:-$(curl -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/nerdvegas/rez/releases/latest | grep -oP '(?<="tag_name": ")[^"]+')}
-COMMON_PARENT="$(git merge-base $LATEST_TAG $WWFX_MASTER)"
+: "Currently at: " "$(git show --no-patch --format='%h')"
+: "$WWFX_MASTER" "$(git show --no-patch --format='%h' $WWFX_MASTER)"
+: "$LATEST_TAG" "$(git show --no-patch --format='%h' $LATEST_TAG)"
+
+[ $(git rev-list --left-right --count "$LATEST_TAG"..."$WWFX_MASTER" | cut -f1) -eq 0 ] && {
+    set +x
+    echo "No new releases since $LATEST_TAG"
+    exit
+} || COMMON_PARENT="$(git merge-base $LATEST_TAG $WWFX_MASTER)"
 
 readarray -t MERGES < <(
     git log --format="%D" "$COMMON_PARENT".."$WWFX_MASTER" \
