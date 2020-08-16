@@ -1,5 +1,5 @@
 # Update this value to version up Rez. Do not place anything else in this file.
-_rez_version = "2.66.0"
+_rez_version = "2.66.0+wwfx.1.0.0"
 
 
 # Copyright 2013-2016 Allan Johns.
