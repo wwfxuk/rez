@@ -1,0 +1,359 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html4" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>rezplugins.build_system.bez &mdash; Rez 2.67.1+wwfx.1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home" alt="Documentation Home"> Rez
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                2.67
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">1. API Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../one-liners.html">2. One-Liners</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Rez</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>rezplugins.build_system.bez</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for rezplugins.build_system.bez</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Built-in simple python build system</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">rez.build_system</span> <span class="kn">import</span> <span class="n">BuildSystem</span>
+<span class="kn">from</span> <span class="nn">rez.build_process</span> <span class="kn">import</span> <span class="n">BuildType</span>
+<span class="kn">from</span> <span class="nn">rez.utils.execution</span> <span class="kn">import</span> <span class="n">create_forwarding_script</span>
+<span class="kn">from</span> <span class="nn">rez.packages</span> <span class="kn">import</span> <span class="n">get_developer_package</span>
+<span class="kn">from</span> <span class="nn">rez.resolved_context</span> <span class="kn">import</span> <span class="n">ResolvedContext</span>
+<span class="kn">from</span> <span class="nn">rez.config</span> <span class="kn">import</span> <span class="n">config</span>
+<span class="kn">from</span> <span class="nn">rez.utils.yaml</span> <span class="kn">import</span> <span class="n">dump_yaml</span>
+<span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">import</span> <span class="nn">os.path</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+
+<div class="viewcode-block" id="BezBuildSystem"><a class="viewcode-back" href="../../../api/rezplugins.build_system.html#rezplugins.build_system.bez.BezBuildSystem">[docs]</a><span class="k">class</span> <span class="nc">BezBuildSystem</span><span class="p">(</span><span class="n">BuildSystem</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The Bez build system.</span>
+
+<span class="sd">    ### DEPRECATED, PLEASE USE CUSTOM BUILD COMMAND INSTEAD ###</span>
+<span class="sd">    https://github.com/nerdvegas/rez/wiki/Building-Packages#custom-build-commands</span>
+
+<span class="sd">    Bez is a simple build system, which runs the &#39;bez&#39; binary in the build</span>
+<span class="sd">    environment. All bez does is run the file &#39;rezbuild.py&#39; (your package&#39;s</span>
+<span class="sd">    build file) in a python subprocess. The code in rezbuild.py has access to</span>
+<span class="sd">    any python module dependencies of the project.</span>
+
+<span class="sd">    Unless told otherwise, Bez expects to find a &#39;python&#39; executable in the</span>
+<span class="sd">    build environment. If you have a specific interpreter you want to use, it</span>
+<span class="sd">    needs to be available as a rez python package, and you should list it as a</span>
+<span class="sd">    private build requirement in your package.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="BezBuildSystem.name"><a class="viewcode-back" href="../../../api/rezplugins.build_system.html#rezplugins.build_system.bez.BezBuildSystem.name">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;bez&quot;</span></div>
+
+<div class="viewcode-block" id="BezBuildSystem.is_valid_root"><a class="viewcode-back" href="../../../api/rezplugins.build_system.html#rezplugins.build_system.bez.BezBuildSystem.is_valid_root">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">is_valid_root</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">package</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s2">&quot;rezbuild.py&quot;</span><span class="p">))</span></div>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">working_dir</span><span class="p">,</span> <span class="n">opts</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">package</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">write_build_scripts</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">build_args</span><span class="o">=</span><span class="p">[],</span> <span class="n">child_build_args</span><span class="o">=</span><span class="p">[]):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">BezBuildSystem</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">working_dir</span><span class="p">,</span>
+                                             <span class="n">opts</span><span class="o">=</span><span class="n">opts</span><span class="p">,</span>
+                                             <span class="n">package</span><span class="o">=</span><span class="n">package</span><span class="p">,</span>
+                                             <span class="n">write_build_scripts</span><span class="o">=</span><span class="n">write_build_scripts</span><span class="p">,</span>
+                                             <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span>
+                                             <span class="n">build_args</span><span class="o">=</span><span class="n">build_args</span><span class="p">,</span>
+                                             <span class="n">child_build_args</span><span class="o">=</span><span class="n">child_build_args</span><span class="p">)</span>
+
+<div class="viewcode-block" id="BezBuildSystem.build"><a class="viewcode-back" href="../../../api/rezplugins.build_system.html#rezplugins.build_system.bez.BezBuildSystem.build">[docs]</a>    <span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">variant</span><span class="p">,</span> <span class="n">build_path</span><span class="p">,</span> <span class="n">install_path</span><span class="p">,</span> <span class="n">install</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+              <span class="n">build_type</span><span class="o">=</span><span class="n">BuildType</span><span class="o">.</span><span class="n">local</span><span class="p">):</span>
+        <span class="c1"># communicate args to bez by placing in a file</span>
+        <span class="n">doc</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">source_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">working_dir</span><span class="p">,</span>
+            <span class="n">build_path</span><span class="o">=</span><span class="n">build_path</span><span class="p">,</span>
+            <span class="n">install_path</span><span class="o">=</span><span class="n">install_path</span><span class="p">,</span>
+            <span class="n">build_args</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">build_args</span><span class="p">)</span>
+
+
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">content</span> <span class="o">=</span> <span class="n">dump_yaml</span><span class="p">(</span><span class="n">doc</span><span class="p">)</span>
+        <span class="n">bezfile</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">build_path</span><span class="p">,</span> <span class="s2">&quot;.bez.yaml&quot;</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">bezfile</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">content</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">write_build_scripts</span><span class="p">:</span>
+            <span class="c1"># write out the script that places the user in a build env, where</span>
+            <span class="c1"># they can run bez directly themselves.</span>
+            <span class="n">build_env_script</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">build_path</span><span class="p">,</span> <span class="s2">&quot;build-env&quot;</span><span class="p">)</span>
+            <span class="n">create_forwarding_script</span><span class="p">(</span><span class="n">build_env_script</span><span class="p">,</span>
+                                     <span class="n">module</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;build_system&quot;</span><span class="p">,</span> <span class="s2">&quot;bez&quot;</span><span class="p">),</span>
+                                     <span class="n">func_name</span><span class="o">=</span><span class="s2">&quot;_FWD__spawn_build_shell&quot;</span><span class="p">,</span>
+                                     <span class="n">working_dir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">working_dir</span><span class="p">,</span>
+                                     <span class="n">build_path</span><span class="o">=</span><span class="n">build_path</span><span class="p">,</span>
+                                     <span class="n">variant_index</span><span class="o">=</span><span class="n">variant</span><span class="o">.</span><span class="n">index</span><span class="p">,</span>
+                                     <span class="n">install</span><span class="o">=</span><span class="n">install</span><span class="p">,</span>
+                                     <span class="n">install_path</span><span class="o">=</span><span class="n">install_path</span><span class="p">)</span>
+
+            <span class="n">ret</span><span class="p">[</span><span class="s2">&quot;success&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">ret</span><span class="p">[</span><span class="s2">&quot;build_env_script&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">build_env_script</span>
+            <span class="k">return</span> <span class="n">ret</span>
+
+        <span class="c1"># run bez in the build environment</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;bez&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">install</span> <span class="ow">and</span> <span class="s2">&quot;install&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cmd</span><span class="p">:</span>
+            <span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;install&quot;</span><span class="p">)</span>
+
+        <span class="n">callback</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_add_build_actions</span><span class="p">,</span>
+                                     <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+                                     <span class="n">package</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">package</span><span class="p">,</span>
+                                     <span class="n">variant</span><span class="o">=</span><span class="n">variant</span><span class="p">,</span>
+                                     <span class="n">build_type</span><span class="o">=</span><span class="n">build_type</span><span class="p">,</span>
+                                     <span class="n">install</span><span class="o">=</span><span class="n">install</span><span class="p">,</span>
+                                     <span class="n">build_path</span><span class="o">=</span><span class="n">build_path</span><span class="p">,</span>
+                                     <span class="n">install_path</span><span class="o">=</span><span class="n">install_path</span><span class="p">)</span>
+
+        <span class="n">retcode</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">execute_shell</span><span class="p">(</span><span class="n">command</span><span class="o">=</span><span class="n">cmd</span><span class="p">,</span>
+                                              <span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                                              <span class="n">cwd</span><span class="o">=</span><span class="n">build_path</span><span class="p">,</span>
+                                              <span class="n">post_actions_callback</span><span class="o">=</span><span class="n">callback</span><span class="p">)</span>
+        <span class="n">ret</span><span class="p">[</span><span class="s2">&quot;success&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="ow">not</span> <span class="n">retcode</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_add_build_actions</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">executor</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">package</span><span class="p">,</span> <span class="n">variant</span><span class="p">,</span>
+                           <span class="n">build_type</span><span class="p">,</span> <span class="n">install</span><span class="p">,</span> <span class="n">build_path</span><span class="p">,</span> <span class="n">install_path</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">add_standard_build_actions</span><span class="p">(</span>
+            <span class="n">executor</span><span class="o">=</span><span class="n">executor</span><span class="p">,</span>
+            <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+            <span class="n">variant</span><span class="o">=</span><span class="n">variant</span><span class="p">,</span>
+            <span class="n">build_type</span><span class="o">=</span><span class="n">build_type</span><span class="p">,</span>
+            <span class="n">install</span><span class="o">=</span><span class="n">install</span><span class="p">,</span>
+            <span class="n">build_path</span><span class="o">=</span><span class="n">build_path</span><span class="p">,</span>
+            <span class="n">install_path</span><span class="o">=</span><span class="n">install_path</span>
+        <span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_FWD__spawn_build_shell</span><span class="p">(</span><span class="n">working_dir</span><span class="p">,</span> <span class="n">build_path</span><span class="p">,</span> <span class="n">variant_index</span><span class="p">,</span> <span class="n">install</span><span class="p">,</span>
+                            <span class="n">install_path</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="c1"># This spawns a shell that the user can run &#39;bez&#39; in directly</span>
+    <span class="n">context</span> <span class="o">=</span> <span class="n">ResolvedContext</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">build_path</span><span class="p">,</span> <span class="s2">&quot;build.rxt&quot;</span><span class="p">))</span>
+    <span class="n">package</span> <span class="o">=</span> <span class="n">get_developer_package</span><span class="p">(</span><span class="n">working_dir</span><span class="p">)</span>
+    <span class="n">variant</span> <span class="o">=</span> <span class="n">package</span><span class="o">.</span><span class="n">get_variant</span><span class="p">(</span><span class="n">variant_index</span><span class="p">)</span>
+    <span class="n">config</span><span class="o">.</span><span class="n">override</span><span class="p">(</span><span class="s2">&quot;prompt&quot;</span><span class="p">,</span> <span class="s2">&quot;BUILD&gt;&quot;</span><span class="p">)</span>
+
+    <span class="n">callback</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">BezBuildSystem</span><span class="o">.</span><span class="n">_add_build_actions</span><span class="p">,</span>
+                                 <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+                                 <span class="n">package</span><span class="o">=</span><span class="n">package</span><span class="p">,</span>
+                                 <span class="n">variant</span><span class="o">=</span><span class="n">variant</span><span class="p">,</span>
+                                 <span class="n">build_type</span><span class="o">=</span><span class="n">BuildType</span><span class="o">.</span><span class="n">local</span><span class="p">,</span>
+                                 <span class="n">install</span><span class="o">=</span><span class="n">install</span><span class="p">,</span>
+                                 <span class="n">build_path</span><span class="o">=</span><span class="n">build_path</span><span class="p">,</span>
+                                 <span class="n">install_path</span><span class="o">=</span><span class="n">install_path</span><span class="p">)</span>
+
+    <span class="n">retcode</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">execute_shell</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="n">build_path</span><span class="p">,</span>
+                                          <span class="n">post_actions_callback</span><span class="o">=</span><span class="n">callback</span><span class="p">)</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="n">retcode</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="register_plugin"><a class="viewcode-back" href="../../../api/rezplugins.build_system.html#rezplugins.build_system.bez.register_plugin">[docs]</a><span class="k">def</span> <span class="nf">register_plugin</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">BezBuildSystem</span></div>
+
+
+<span class="c1"># Copyright 2013-2016 Allan Johns.</span>
+<span class="c1">#</span>
+<span class="c1"># This library is free software: you can redistribute it and/or</span>
+<span class="c1"># modify it under the terms of the GNU Lesser General Public</span>
+<span class="c1"># License as published by the Free Software Foundation, either</span>
+<span class="c1"># version 3 of the License, or (at your option) any later version.</span>
+<span class="c1">#</span>
+<span class="c1"># This library is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU</span>
+<span class="c1"># Lesser General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU Lesser General Public</span>
+<span class="c1"># License along with this library.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2014, Allan Johns
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

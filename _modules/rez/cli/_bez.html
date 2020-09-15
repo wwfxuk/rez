@@ -1,0 +1,311 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html4" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>rez.cli._bez &mdash; Rez 2.67.1+wwfx.1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home" alt="Documentation Home"> Rez
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                2.67
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">1. API Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../one-liners.html">2. One-Liners</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Rez</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>rez.cli._bez</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for rez.cli._bez</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">print_function</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">os.path</span>
+<span class="kn">import</span> <span class="nn">textwrap</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">argparse</span>
+<span class="kn">from</span> <span class="nn">rez.vendor</span> <span class="kn">import</span> <span class="n">yaml</span>
+<span class="kn">from</span> <span class="nn">rez.utils.execution</span> <span class="kn">import</span> <span class="n">Popen</span>
+<span class="kn">from</span> <span class="nn">rez.utils.filesystem</span> <span class="kn">import</span> <span class="n">TempDirs</span>
+<span class="kn">from</span> <span class="nn">rez.config</span> <span class="kn">import</span> <span class="n">config</span>
+
+
+<div class="viewcode-block" id="run"><a class="viewcode-back" href="../../../api/rez.cli.html#rez.cli._bez.run">[docs]</a><span class="k">def</span> <span class="nf">run</span><span class="p">():</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span> \
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Simple builtin Rez build system&quot;</span><span class="p">)</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;TARGET&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;*&#39;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;build targets&quot;</span><span class="p">)</span>
+
+    <span class="n">opts</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+    <span class="c1"># check necessary files, load info about the build</span>
+    <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;build.rxt&quot;</span><span class="p">,</span> <span class="s2">&quot;.bez.yaml&quot;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">file</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;no </span><span class="si">%s</span><span class="s2"> file found. Stop.&quot;</span> <span class="o">%</span> <span class="n">file</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;.bez.yaml&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">doc</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(),</span> <span class="n">Loader</span><span class="o">=</span><span class="n">yaml</span><span class="o">.</span><span class="n">FullLoader</span><span class="p">)</span>
+
+    <span class="n">source_path</span> <span class="o">=</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;source_path&quot;</span><span class="p">]</span>
+    <span class="n">buildfile</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">source_path</span><span class="p">,</span> <span class="s2">&quot;rezbuild.py&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">buildfile</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;no rezbuild.py at </span><span class="si">%s</span><span class="s2">. Stop.&quot;</span> <span class="o">%</span> <span class="n">source_path</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># run rezbuild.py:build() in python subprocess. Cannot import module here</span>
+    <span class="c1"># because we&#39;re in a python env configured for rez, not the build</span>
+    <span class="n">code</span> <span class="o">=</span> \
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    env={}</span>
+<span class="sd">    with open(&quot;%(buildfile)s&quot;) as stream:</span>
+<span class="sd">        exec(compile(stream.read(), stream.name, &#39;exec&#39;), env)</span>
+
+<span class="sd">    buildfunc = env.get(&quot;build&quot;)</span>
+<span class="sd">    if not buildfunc:</span>
+<span class="sd">        import sys</span>
+<span class="sd">        sys.stderr.write(&quot;Did not find function &#39;build&#39; in rezbuild.py\\n&quot;)</span>
+<span class="sd">        sys.exit(1)</span>
+
+<span class="sd">    kwargs = dict(source_path=&quot;%(srcpath)s&quot;,</span>
+<span class="sd">                  build_path=&quot;%(bldpath)s&quot;,</span>
+<span class="sd">                  install_path=&quot;%(instpath)s&quot;,</span>
+<span class="sd">                  targets=%(targets)s,</span>
+<span class="sd">                  build_args=%(build_args)s)</span>
+
+<span class="sd">    import inspect</span>
+
+<span class="sd">    if hasattr(inspect, &quot;getfullargspec&quot;):</span>
+<span class="sd">        # support py3 kw-only args</span>
+<span class="sd">        spec = inspect.getfullargspec(buildfunc)</span>
+<span class="sd">        args = spec.args + spec.kwonlyargs</span>
+<span class="sd">    else:</span>
+<span class="sd">        args = inspect.getargspec(buildfunc).args</span>
+
+<span class="sd">    kwargs = dict((k, v) for k, v in kwargs.items() if k in args)</span>
+
+<span class="sd">    buildfunc(**kwargs)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span> <span class="o">%</span> <span class="nb">dict</span><span class="p">(</span><span class="n">buildfile</span><span class="o">=</span><span class="n">buildfile</span><span class="p">,</span>
+               <span class="n">srcpath</span><span class="o">=</span><span class="n">source_path</span><span class="p">,</span>
+               <span class="n">bldpath</span><span class="o">=</span><span class="n">doc</span><span class="p">[</span><span class="s2">&quot;build_path&quot;</span><span class="p">],</span>
+               <span class="n">instpath</span><span class="o">=</span><span class="n">doc</span><span class="p">[</span><span class="s2">&quot;install_path&quot;</span><span class="p">],</span>
+               <span class="n">targets</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">opts</span><span class="o">.</span><span class="n">TARGET</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">),</span>
+               <span class="n">build_args</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">doc</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;build_args&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]))</span>
+
+    <span class="n">cli_code</span> <span class="o">=</span> <span class="n">textwrap</span><span class="o">.</span><span class="n">dedent</span><span class="p">(</span><span class="n">code</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\\\\</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">tmpdir_manager</span> <span class="o">=</span> <span class="n">TempDirs</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">&quot;bez_&quot;</span><span class="p">)</span>
+    <span class="n">bezfile</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmpdir_manager</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">(),</span> <span class="s2">&quot;bezfile&quot;</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">bezfile</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fd</span><span class="p">:</span>
+        <span class="n">fd</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">cli_code</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;executing rezbuild.py...&quot;</span><span class="p">)</span>
+    <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">,</span> <span class="n">bezfile</span><span class="p">]</span>
+
+    <span class="k">with</span> <span class="n">Popen</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span> <span class="k">as</span> <span class="n">p</span><span class="p">:</span>
+        <span class="n">p</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+
+    <span class="n">tmpdir_manager</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">returncode</span><span class="p">)</span></div>
+
+
+<span class="c1"># Copyright 2013-2016 Allan Johns.</span>
+<span class="c1">#</span>
+<span class="c1"># This library is free software: you can redistribute it and/or</span>
+<span class="c1"># modify it under the terms of the GNU Lesser General Public</span>
+<span class="c1"># License as published by the Free Software Foundation, either</span>
+<span class="c1"># version 3 of the License, or (at your option) any later version.</span>
+<span class="c1">#</span>
+<span class="c1"># This library is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU</span>
+<span class="c1"># Lesser General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU Lesser General Public</span>
+<span class="c1"># License along with this library.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2014, Allan Johns
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
