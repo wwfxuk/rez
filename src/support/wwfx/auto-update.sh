@@ -34,6 +34,15 @@ fix_interactively() {
     set -x
 }
 
+push_force() {
+    if [ "${NO_PUSH:-FALSE}" == "FALSE" ]
+    then
+        git push -uf "$@"
+    else
+        echo "NO_PUSH: git push -uf" "$@"
+    fi
+}
+
 post_rebase_success() {
     local BRANCH
     local UPSTREAM
@@ -52,7 +61,7 @@ post_rebase_success() {
 
     # Push if remote available, setup GitHub link as required
     [ -z "$REMOTE" ] || {
-        git push -uf "$REMOTE" "$BRANCH":"${UPSTREAM#*/}"
+        push_force "$REMOTE" "$BRANCH":"${UPSTREAM#*/}"
 
         GITHUB_REPO="$(git remote get-url ${REMOTE} | sed -n '/.*github\.com/ { s|.*github.com.||; s/\.git.*//p; q}')"
 	[ -z "$GITHUB_REPO" ] || BRANCH_MERGED_TEXT="- [${COMMIT}](https://github.com/${WWFX_REMOTE_REPO}/compare/${LATEST_TAG}...${COMMIT}) from [${BRANCH}](https://github.com/${GITHUB_REPO}/tree/${BRANCH}).\n"
@@ -131,5 +140,5 @@ ${NEW_CHANGELOG_ENTRY}" > CHANGELOG.md
     # Commit, tag and push to WWFX master
     git commit --all -m "Updated Changelogs, version to ${LATEST_TAG}+wwfx.1.0.0"
     git tag "${LATEST_TAG}+wwfx.1.0.0"
-    git push --force -u "$WWFX_REMOTE" "${LATEST_TAG}+wwfx.1.0.0" master:master
+    push_force "$WWFX_REMOTE" "${LATEST_TAG}+wwfx.1.0.0" master:master
 }
