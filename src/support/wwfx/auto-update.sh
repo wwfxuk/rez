@@ -114,7 +114,7 @@ done
     NEW_CHANGELOG_ENTRY="## ${LATEST_TAG}+wwfx.1.0.0 ($(date +%Y-%m-%d))\n\
 [Source](https://github.com/${WWFX_REMOTE_REPO}/tree/${LATEST_TAG}+wwfx.1.0.0) | [Diff](https://github.com/${WWFX_REMOTE_REPO}/compare/${LATEST_TAG}...${LATEST_TAG}+wwfx.1.0.0)\n\n\
 **Merged**\n\n${MERGED_TEXT}"
-    WWFX_CHANGELOG_COMMIT=$(git log --all -G'.*\+wwfx' --format="%h" -- CHANGELOG.md | head -1)
+    WWFX_CHANGELOG_COMMIT=$(git log --all -G'.*\+wwfx' --format="%h" -1 -- CHANGELOG.md)
 
     # Setup latest official version that WWFX forked from
     # e.g. "## 2.58.0"
