@@ -22,7 +22,7 @@ LATEST_TAG=${LATEST_TAG:-$(curl -H "Accept: application/vnd.github.v3+json" http
 
 readarray -t MERGES < <(
     git log --format="%D" "$COMMON_PARENT".."$WWFX_MASTER" \
-    | sed -n "/tag/d; s/, /,/p"
+    | sed -n '/tag/d; /^$/d; s/, /,/;p'
 )
 
 fix_interactively() {
@@ -76,8 +76,8 @@ do
     UPSTREAM="${MERGE_BRANCH%%,*}"
     REMOTE="${UPSTREAM%%/*}"
 
-    # Set branch to upstream if empty, also check upstream has branch name
-    [ -n "$BRANCH" ] || [ -z "${UPSTREAM#*/}" ] || {
+    # Set branch to upstream if empty or same, also check upstream has branch name
+    [ "${BRANCH:-$UPSTREAM}" != "$UPSTREAM" ] || [ -z "${UPSTREAM#*/}" ] || {
         BRANCH="${UPSTREAM#*/}"
         git checkout -B "$BRANCH" "$UPSTREAM"
     }
